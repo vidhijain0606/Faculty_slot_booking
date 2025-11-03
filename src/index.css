@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Academic Professional Theme - Teal & Beige Palette */
+    --background: 0 0% 100%;
+    --foreground: 201 50% 21%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 201 50% 21%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 201 50% 21%;
+
+    --primary: 201 50% 21%; /* #1B3C53 */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 201 49% 28%; /* #234C6A */
+
+    --secondary: 202 29% 40%; /* #456882 */
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 32 24% 90%;
+    --muted-foreground: 201 30% 35%;
+
+    --accent: 32 24% 76%; /* #D2C1B6 */
+    --accent-foreground: 201 50% 21%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 32 24% 85%;
+    --input: 32 24% 85%;
+    --ring: 201 50% 21%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 201 50% 21%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 32 24% 76%;
+    --sidebar-primary-foreground: 201 50% 21%;
+    --sidebar-accent: 201 49% 28%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 201 49% 28%;
+    --sidebar-ring: 32 24% 76%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(201 50% 21%), hsl(201 49% 28%));
+    --gradient-accent: linear-gradient(135deg, hsl(32 24% 76%), hsl(32 24% 85%));
+    
+    /* Shadows */
+    --shadow-soft: 0 4px 12px hsl(201 50% 21% / 0.1);
+    --shadow-medium: 0 8px 24px hsl(201 50% 21% / 0.15);
+  }
+
+  .dark {
+    --background: 201 50% 10%;
+    --foreground: 0 0% 95%;
+
+    --card: 201 50% 15%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 201 50% 15%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 32 24% 76%;
+    --primary-foreground: 201 50% 21%;
+    --primary-hover: 32 24% 70%;
+
+    --secondary: 202 29% 40%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 201 49% 20%;
+    --muted-foreground: 32 24% 70%;
+
+    --accent: 201 49% 28%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 201 49% 25%;
+    --input: 201 49% 25%;
+    --ring: 32 24% 76%;
+
+    --sidebar-background: 201 50% 15%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 32 24% 76%;
+    --sidebar-primary-foreground: 201 50% 15%;
+    --sidebar-accent: 201 49% 28%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 201 49% 25%;
+    --sidebar-ring: 32 24% 76%;
+
+    --shadow-soft: 0 4px 12px hsl(0 0% 0% / 0.3);
+    --shadow-medium: 0 8px 24px hsl(0 0% 0% / 0.4);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
