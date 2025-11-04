@@ -29,36 +29,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // 👇 Listen for login/logout
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          // Fetch role and redirect after successful login
-          fetchUserRole(session.user.id, true);
-        } else {
-          setUserRole(null);
-          setLoading(false);
-        }
-      }
-    );
-
-    // 👇 On refresh, check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // 🔹 Listen for login/logout events
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        // Don’t auto-redirect on reload
-        fetchUserRole(session.user.id, false);
+        await fetchUserRole(session.user.id, true);
+      } else {
+        setUserRole(null);
+        setLoading(false);
+      }
+    });
+
+    // 🔹 On refresh, check existing session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+
+      if (session?.user) {
+        await fetchUserRole(session.user.id, false);
       } else {
         setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   // 🔹 Fetch role and redirect appropriately
@@ -70,36 +70,46 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .eq('user_id', userId)
         .single();
 
-      if (error) throw error;
+      // If no entry, insert default
+      let role = data?.role ?? null;
+      if (error && error.code !== 'PGRST116') throw error;
 
-      if (data) {
-        const role = data.role;
-        setUserRole(role);
-
-        // ✅ Redirect only right after login
-        if (shouldRedirect) {
-          if (role === 'faculty') {
-            navigate('/faculty', { replace: true });
-          } else if (role === 'scholar') {
-            navigate('/scholar', { replace: true });
-          } else {
-            navigate('/', { replace: true });
-          }
-        }
+      if (!role) {
+        const { error: insertError } = await supabase
+          .from('user_roles')
+          .upsert(
+            { user_id: userId, role: 'scholar' },
+            { onConflict: 'user_id' }
+          );
+        if (insertError) throw insertError;
+        role = 'scholar';
       }
-    } catch (err) {
-      console.error('Error fetching user role:', err);
+
+      setUserRole(role);
+
+      if (shouldRedirect) {
+        if (role === 'faculty') navigate('/faculty', { replace: true });
+        else if (role === 'scholar') navigate('/scholar', { replace: true });
+        else navigate('/', { replace: true });
+      }
+    } catch (error) {
+      console.error('Error fetching user role:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    setUserRole(null);
-    navigate('/auth');
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error('Error signing out:', err);
+    } finally {
+      setUser(null);
+      setSession(null);
+      setUserRole(null);
+      navigate('/auth');
+    }
   };
 
   return (

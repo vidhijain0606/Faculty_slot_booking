@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/lib/auth';
+import { useAuth } from '@/lib/auth'; // ✅ Correct path (using alias)
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -18,12 +18,19 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     );
   }
 
-  // 🚫 Not logged in → go to /auth
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
 
-  // 🎯 Role mismatch → redirect to correct dashboard
+  if (!userRole) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p>Loading your role...</p>
+      </div>
+    );
+  }
+
+  // Role-based redirects
   if (userRole === 'faculty' && location.pathname.startsWith('/scholar')) {
     return <Navigate to="/faculty" replace />;
   }
@@ -32,11 +39,10 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/scholar" replace />;
   }
 
-  // 🚷 If allowedRoles is defined, enforce it strictly
-  if (allowedRoles && !allowedRoles.includes(userRole || '')) {
+  // Restrict specific roles
+  if (allowedRoles && !allowedRoles.includes(userRole)) {
     return <Navigate to="/" replace />;
   }
 
-  // ✅ Access granted
   return <>{children}</>;
 };

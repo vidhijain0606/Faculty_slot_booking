@@ -19,21 +19,17 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // ✅ Sign In
+  // 🔹 Sign In
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
       const userId = data?.user?.id;
-      if (!userId) throw new Error('User ID not found after sign in.');
+      if (!userId) throw new Error('User ID not found.');
 
       const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
@@ -41,38 +37,22 @@ export default function Auth() {
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (roleError) console.warn('Role fetch warning:', roleError);
-
+      if (roleError) throw roleError;
       const userRole = roleData?.role;
 
-      toast({
-        title: 'Welcome back!',
-        description: 'Successfully signed in.',
-      });
+      if (!userRole) throw new Error('Role not found for this user.');
 
-      switch (userRole) {
-        case 'faculty':
-          navigate('/faculty');
-          break;
-        case 'scholar':
-          navigate('/scholar');
-          break;
-        default:
-          navigate('/auth');
-          break;
-      }
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.message,
-      });
+      toast({ title: 'Welcome back!', description: 'Login successful.' });
+
+      navigate(userRole === 'faculty' ? '/faculty' : '/scholar');
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Sign Up with Role Insert Verification
+  // 🔹 Sign Up
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -82,58 +62,45 @@ export default function Auth() {
         email,
         password,
         options: {
+          data: { name, role },
           emailRedirectTo: `${window.location.origin}/`,
-          data: { name },
         },
       });
 
       if (error) throw error;
-      if (!data.user) throw new Error('User signup failed');
+      if (!data.user) throw new Error('Signup failed.');
 
       const userId = data.user.id;
-      let inserted = false;
 
-      // Retry up to 3 times for Supabase sync delay
-      for (let attempt = 1; attempt <= 3 && !inserted; attempt++) {
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({ user_id: userId, role })
-          .single();
+      // wait for auth.users propagation
+      await new Promise((r) => setTimeout(r, 1200));
 
-        if (!roleError) {
-          inserted = true;
-          console.log(`✅ Role inserted successfully on attempt ${attempt}`);
-        } else {
-          console.warn(`⏳ Retry ${attempt} - role insert failed:`, roleError.message);
-          await new Promise((res) => setTimeout(res, 800));
-        }
-      }
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .upsert([{ user_id: userId, role }], { onConflict: 'user_id' });
 
-      if (!inserted) throw new Error('Failed to save user role after multiple attempts.');
+      if (roleError) throw roleError;
 
-      toast({
-        title: 'Account created!',
-        description: 'Redirecting to your dashboard...',
-      });
+      // verify inserted role
+      const { data: verifyRole } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-      // ✅ Navigate safely based on confirmed role
-      if (role === 'faculty') {
-        navigate('/faculty');
-      } else {
-        navigate('/scholar');
-      }
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.message,
-      });
+      if (!verifyRole || verifyRole.role !== role)
+        throw new Error('Role verification failed.');
+
+      toast({ title: 'Account created!', description: 'Redirecting to your dashboard...' });
+
+      navigate(role === 'faculty' ? '/faculty' : '/scholar');
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ UI
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/30 to-accent/20 p-4">
       <Card className="w-full max-w-md shadow-medium">
@@ -154,24 +121,21 @@ export default function Auth() {
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
 
-            {/* ✅ Sign In */}
+            {/* Sign In */}
             <TabsContent value="signin">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signin-email">Email</Label>
+                  <Label>Email</Label>
                   <Input
-                    id="signin-email"
                     type="email"
-                    placeholder="scholar@university.edu"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signin-password">Password</Label>
+                  <Label>Password</Label>
                   <Input
-                    id="signin-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -185,13 +149,12 @@ export default function Auth() {
               </form>
             </TabsContent>
 
-            {/* ✅ Sign Up */}
+            {/* Sign Up */}
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-name">Full Name</Label>
+                  <Label>Full Name</Label>
                   <Input
-                    id="signup-name"
                     type="text"
                     placeholder="John Doe"
                     value={name}
@@ -200,20 +163,17 @@ export default function Auth() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
+                  <Label>Email</Label>
                   <Input
-                    id="signup-email"
                     type="email"
-                    placeholder="scholar@university.edu"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
+                  <Label>Password</Label>
                   <Input
-                    id="signup-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -222,12 +182,9 @@ export default function Auth() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="role">I am a</Label>
-                  <Select
-                    value={role}
-                    onValueChange={(value: 'scholar' | 'faculty') => setRole(value)}
-                  >
-                    <SelectTrigger id="role">
+                  <Label>I am a</Label>
+                  <Select value={role} onValueChange={(v: 'scholar' | 'faculty') => setRole(v)}>
+                    <SelectTrigger>
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
                     <SelectContent>
