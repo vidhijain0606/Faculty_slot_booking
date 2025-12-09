@@ -11,8 +11,6 @@ export const Header = () => {
     switch (userRole) {
       case 'scholar':
         return '/scholar';
-      case 'faculty':
-        return '/faculty';
       case 'admin':
         return '/admin';
       default:
@@ -28,7 +26,7 @@ export const Header = () => {
           className="flex items-center gap-2 font-semibold text-xl text-foreground hover:text-primary transition-colors"
         >
           <Calendar className="h-6 w-6" />
-          <span>Faculty Scheduler</span>
+          <span>Scholar Booking System</span>
         </button>
         
         <div className="flex items-center gap-4">

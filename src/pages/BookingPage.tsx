@@ -10,126 +10,129 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar, ArrowLeft, Clock } from 'lucide-react';
-import { format, addMinutes } from 'date-fns';
+import { format } from 'date-fns';
 
-interface Faculty {
-  name: string;
-  email: string;
-}
-
-interface TimeSlot {
-  start: Date;
-  end: Date;
+interface Slot {
+  id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  faculty_id?: string;
 }
 
 export default function BookingPage() {
-  const { facultyId } = useParams();
+  const { slotId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [faculty, setFaculty] = useState<Faculty | null>(null);
-  const [selectedDate, setSelectedDate] = useState('');
-  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
-  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const [slot, setSlot] = useState<Slot | null>(null);
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (facultyId) fetchFaculty();
-  }, [facultyId]);
+    if (slotId) fetchSlot();
+  }, [slotId]);
 
-  useEffect(() => {
-    if (selectedDate) fetchAvailableSlots();
-  }, [selectedDate]);
-
-  const fetchFaculty = async () => {
+  const fetchSlot = async () => {
     try {
       const { data, error } = await supabase
-        .from('faculty')
-        .select('name, email')
-        .eq('id', facultyId)
+        .from('faculty_slots')
+        .select('id, date, start_time, end_time, status, faculty_id')
+        .eq('id', slotId)
+        .eq('status', 'available')
         .maybeSingle();
 
       if (error) throw error;
-      if (!data) throw new Error('Faculty not found');
-      setFaculty(data);
-    } catch {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to load faculty information',
-      });
-    }
-  };
-
-  const fetchAvailableSlots = async () => {
-    try {
-      if (!facultyId || !selectedDate) return setAvailableSlots([]);
-
-      const normalizedDate = format(new Date(selectedDate), 'yyyy-MM-dd');
-      const { data: availability, error } = await supabase
-        .from('availability')
-        .select('*')
-        .eq('faculty_id', facultyId)
-        .eq('date', normalizedDate);
-
-      if (error) throw error;
-      if (!availability?.length) return setAvailableSlots([]);
-
-      const DEFAULT_SLOT_MINUTES = 60;
-      const slots: TimeSlot[] = [];
-
-      availability.forEach((avail: any) => {
-        const [sh, sm] = String(avail.start_time).split(':').map(Number);
-        const [eh, em] = String(avail.end_time).split(':').map(Number);
-
-        let current = new Date(normalizedDate);
-        current.setHours(sh, sm, 0, 0);
-        const end = new Date(normalizedDate);
-        end.setHours(eh, em, 0, 0);
-
-        const slotDuration = Number(avail.slot_duration) || DEFAULT_SLOT_MINUTES;
-        while (current < end) {
-          const slotEnd = addMinutes(current, slotDuration);
-          if (slotEnd <= end) slots.push({ start: new Date(current), end: slotEnd });
-          current = slotEnd;
-        }
-      });
-
-      setAvailableSlots(slots);
+      if (!data) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Slot not found or already booked',
+        });
+        navigate('/scholar');
+        return;
+      }
+      setSlot(data);
     } catch (err) {
-      console.error('Slot fetch failed:', err);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to load available time slots',
+        description: 'Failed to load slot information',
       });
+      navigate('/scholar');
     }
   };
 
   const handleBooking = async () => {
-    if (!selectedSlot || !user || !reason.trim()) {
+    if (!slot || !user || !reason.trim()) {
       return toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Please select a time slot and provide a reason',
+        description: 'Please provide a reason for booking',
       });
     }
 
     setLoading(true);
     try {
-      const { error } = await supabase.from('appointments').insert({
-        faculty_id: facultyId,
+      // Step 1: Double-check slot availability
+      const { data: slotCheck } = await supabase
+        .from('faculty_slots')
+        .select('status')
+        .eq('id', slot.id)
+        .maybeSingle();
+
+      if (slotCheck?.status !== 'available') {
+        toast({
+          variant: 'destructive',
+          title: 'Slot Unavailable',
+          description: 'This slot has already been booked. Please select another.',
+        });
+        setLoading(false);
+        navigate('/scholar');
+        return;
+      }
+
+      // Step 2: Create appointment
+      // Handle time format - ensure it's HH:mm:ss
+      const startTimeFormatted = slot.start_time.includes(':') 
+        ? (slot.start_time.split(':').length === 2 ? `${slot.start_time}:00` : slot.start_time)
+        : `${slot.start_time}:00`;
+      const endTimeFormatted = slot.end_time.includes(':')
+        ? (slot.end_time.split(':').length === 2 ? `${slot.end_time}:00` : slot.end_time)
+        : `${slot.end_time}:00`;
+      
+      const startTimestamp = new Date(`${slot.date}T${startTimeFormatted}`).toISOString();
+      const endTimestamp = new Date(`${slot.date}T${endTimeFormatted}`).toISOString();
+      
+      // Validate timestamps
+      if (isNaN(new Date(startTimestamp).getTime()) || isNaN(new Date(endTimestamp).getTime())) {
+        throw new Error('Invalid time format. Please try again.');
+      }
+
+      const { error: insertError } = await supabase.from('appointments').insert({
+        faculty_id: slot.faculty_id || '00000000-0000-0000-0000-000000000000',
+        scholar_id: user.id,
         scholar_name: user.email?.split('@')[0] || 'Scholar',
         scholar_email: user.email,
         purpose: reason.trim(),
         booked_at: new Date().toISOString(),
-        start_time: selectedSlot.start.toISOString(),
-        end_time: selectedSlot.end.toISOString(),
+        start_time: startTimestamp,
+        end_time: endTimestamp,
+        slot_id: slot.id,
+        status: 'confirmed',
       });
 
-      if (error) throw error;
+      if (insertError) throw insertError;
+
+      // Step 3: Mark that slot as booked
+      const { error: updateError } = await supabase
+        .from('faculty_slots')
+        .update({ status: 'booked' })
+        .eq('id', slot.id);
+
+      if (updateError) throw updateError;
 
       toast({
         title: 'Success',
@@ -147,6 +150,31 @@ export default function BookingPage() {
     }
   };
 
+  const formatTime = (time: string) => {
+    if (!time) return "";
+    if (time.includes("T")) {
+      const d = new Date(time);
+      if (isNaN(d.getTime())) return time;
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+    return time.split(":")[0] + ":" + time.split(":")[1];
+  };
+
+  if (!slot) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <Card>
+            <CardContent className="flex items-center justify-center py-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
       <Header />
@@ -159,87 +187,61 @@ export default function BookingPage() {
         <Card className="max-w-2xl mx-auto shadow-medium">
           <CardHeader>
             <CardTitle className="text-2xl">Book Appointment</CardTitle>
-            {faculty && (
-              <CardDescription>
-                Schedule a meeting with {faculty.name} ({faculty.email})
-              </CardDescription>
-            )}
+            <CardDescription>
+              Book this time slot
+            </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6">
+            {/* Slot Information */}
+            <div className="space-y-4 p-4 bg-muted rounded-lg">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-muted-foreground" />
+                <span className="font-medium">
+                  {(() => {
+                    const parsed = new Date(`${slot.date}T00:00:00`);
+                    return !isNaN(parsed.getTime())
+                      ? format(parsed, "PPP")
+                      : slot.date;
+                  })()}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-muted-foreground" />
+                <span className="font-medium">
+                  {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                </span>
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="date">Select Date</Label>
-              <Input
-                id="date"
-                type="date"
-                value={selectedDate}
-                onChange={(e) => {
-                  setSelectedDate(e.target.value);
-                  setSelectedSlot(null);
-                }}
-                min={format(new Date(), 'yyyy-MM-dd')}
+              <Label htmlFor="reason">Reason for Booking</Label>
+              <Textarea
+                id="reason"
+                placeholder="Brief description of what you'd like to discuss..."
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={4}
               />
             </div>
 
-            {selectedDate && (
-              <div className="space-y-2">
-                <Label>Available Time Slots</Label>
-                {availableSlots.length === 0 ? (
-                  <Card>
-                    <CardContent className="flex flex-col items-center justify-center py-8">
-                      <Clock className="h-12 w-12 text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground">No available slots for this date</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {availableSlots.map((slot, index) => (
-                      <Button
-                        key={index}
-                        variant={selectedSlot === slot ? 'default' : 'outline'}
-                        onClick={() => setSelectedSlot(slot)}
-                        className="text-sm"
-                      >
-                        {format(slot.start, 'p')} - {format(slot.end, 'p')}
-                      </Button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {selectedSlot && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="reason">Reason for Meeting</Label>
-                  <Textarea
-                    id="reason"
-                    placeholder="Brief description of what you'd like to discuss..."
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    rows={4}
-                  />
-                </div>
-
-                <Button
-                  onClick={handleBooking}
-                  disabled={loading || !reason.trim()}
-                  className="w-full"
-                >
-                  {loading ? (
-                    <>
-                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                      Booking...
-                    </>
-                  ) : (
-                    <>
-                      <Calendar className="mr-2 h-4 w-4" />
-                      Confirm Booking
-                    </>
-                  )}
-                </Button>
-              </>
-            )}
+            <Button
+              onClick={handleBooking}
+              disabled={loading || !reason.trim()}
+              className="w-full"
+            >
+              {loading ? (
+                <>
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                  Booking...
+                </>
+              ) : (
+                <>
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Confirm Booking
+                </>
+              )}
+            </Button>
           </CardContent>
         </Card>
       </main>

@@ -31,11 +31,11 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   // Role-based redirects
-  if (userRole === 'faculty' && location.pathname.startsWith('/scholar')) {
-    return <Navigate to="/faculty" replace />;
+  if (userRole === 'admin' && location.pathname.startsWith('/scholar')) {
+    return <Navigate to="/admin" replace />;
   }
 
-  if (userRole === 'scholar' && location.pathname.startsWith('/faculty')) {
+  if (userRole === 'scholar' && location.pathname.startsWith('/admin')) {
     return <Navigate to="/scholar" replace />;
   }
 

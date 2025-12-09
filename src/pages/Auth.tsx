@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar, Loader2 } from 'lucide-react';
 
@@ -15,91 +14,111 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<'scholar' | 'faculty'>('scholar');
+  // Only scholars can sign up - admin is created separately
+  const [role] = useState<'scholar'>('scholar');
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // 🔹 Sign In
+  // ✅ Sign In
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       if (error) throw error;
 
       const userId = data?.user?.id;
-      if (!userId) throw new Error('User ID not found.');
+      if (!userId) throw new Error('User ID not found after sign in.');
 
-      const { data: roleData, error: roleError } = await supabase
+      const { data: roleData } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (roleError) throw roleError;
-      const userRole = roleData?.role;
+      const userRole = roleData?.role ?? 'scholar';
 
-      if (!userRole) throw new Error('Role not found for this user.');
-
-      toast({ title: 'Welcome back!', description: 'Login successful.' });
-
-      navigate(userRole === 'faculty' ? '/faculty' : '/scholar');
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Error', description: err.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 🔹 Sign Up
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { name, role },
-          emailRedirectTo: `${window.location.origin}/`,
-        },
+      toast({
+        title: 'Welcome back!',
+        description: 'Successfully signed in.',
       });
 
-      if (error) throw error;
-      if (!data.user) throw new Error('Signup failed.');
-
-      const userId = data.user.id;
-
-      // wait for auth.users propagation
-      await new Promise((r) => setTimeout(r, 1200));
-
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .upsert([{ user_id: userId, role }], { onConflict: 'user_id' });
-
-      if (roleError) throw roleError;
-
-      // verify inserted role
-      const { data: verifyRole } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (!verifyRole || verifyRole.role !== role)
-        throw new Error('Role verification failed.');
-
-      toast({ title: 'Account created!', description: 'Redirecting to your dashboard...' });
-
-      navigate(role === 'faculty' ? '/faculty' : '/scholar');
+      // Redirect based on role
+      if (userRole === 'admin') {
+        navigate('/admin');
+      } else if (userRole === 'scholar') {
+        navigate('/scholar');
+      } else {
+        // Faculty or other roles go to scholar page (or you can block them)
+        navigate('/scholar');
+      }
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Error', description: err.message });
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: err.message,
+      });
     } finally {
       setLoading(false);
     }
   };
+// ✅ SIGN UP 
+const handleSignUp = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
+
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth`,
+        data: { name },
+      },
+    });
+
+    if (error) throw error;
+    if (!data.user) throw new Error('User signup failed.');
+
+    const userId = data.user.id;
+
+    // 🔹 Ensure no duplicate role record
+    await supabase.from('user_roles').delete().eq('user_id', userId);
+
+    // 🔹 Insert the selected role
+    const { error: roleError } = await supabase
+      .from('user_roles')
+      .insert([{ user_id: userId, role }]);
+
+    if (roleError) throw roleError;
+
+    toast({
+      title: 'Account created!',
+      description: 'Please sign in to continue.',
+    });
+
+    // Clear form and switch to sign in tab
+    setEmail('');
+    setPassword('');
+    setName('');
+    
+    // Don't auto-redirect - let user sign in manually
+    // The auth state change will handle redirect after sign in
+  } catch (err: any) {
+    toast({
+      variant: 'destructive',
+      title: 'Error',
+      description: err.message,
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/30 to-accent/20 p-4">
@@ -110,8 +129,8 @@ export default function Auth() {
               <Calendar className="h-8 w-8 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Faculty Scheduler</CardTitle>
-          <CardDescription>Book appointments with faculty members</CardDescription>
+          <CardTitle className="text-2xl">Scholar Booking System</CardTitle>
+          <CardDescription>Book appointment slots</CardDescription>
         </CardHeader>
 
         <CardContent>
@@ -128,6 +147,7 @@ export default function Auth() {
                   <Label>Email</Label>
                   <Input
                     type="email"
+                    placeholder="user@university.edu"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -166,6 +186,7 @@ export default function Auth() {
                   <Label>Email</Label>
                   <Input
                     type="email"
+                    placeholder="scholar@university.edu"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -181,18 +202,7 @@ export default function Auth() {
                     minLength={6}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>I am a</Label>
-                  <Select value={role} onValueChange={(v: 'scholar' | 'faculty') => setRole(v)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="scholar">Scholar</SelectItem>
-                      <SelectItem value="faculty">Faculty Member</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* Only scholars can sign up - role is automatically set to 'scholar' */}
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Create Account

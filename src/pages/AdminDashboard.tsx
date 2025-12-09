@@ -21,6 +21,7 @@ interface Appointment {
   booked_at: string;
   start_time?: string;
   end_time?: string;
+  faculty_id?: string;
 }
 
 interface Document {
@@ -32,10 +33,10 @@ interface Document {
   created_at: string;
 }
 
-export default function FacultyDashboard() {
+export default function AdminDashboard() {
   const { user, userRole } = useAuth();
   const navigate = useNavigate();
-  const [bookings, setBookings] = useState<Appointment[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [slotDialogOpen, setSlotDialogOpen] = useState(false);
@@ -55,19 +56,35 @@ export default function FacultyDashboard() {
   
   const { toast } = useToast();
 
-  // ✅ Fetch Appointments
-  const fetchBookings = async () => {
+  useEffect(() => {
+    // Redirect non-admins away
+    if (userRole && userRole !== 'admin') {
+      if (userRole === 'scholar') {
+        navigate('/scholar', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+      return;
+    }
+    
+    if (user?.id && userRole === 'admin') {
+      fetchAppointments();
+      fetchDocuments();
+    }
+  }, [user, userRole, navigate]);
+
+  // ✅ Fetch All Appointments
+  const fetchAppointments = async () => {
     try {
       const { data, error } = await supabase
         .from("appointments")
-        .select("id, scholar_name, scholar_email, purpose, booked_at, start_time, end_time")
-        .eq("faculty_id", user?.id)
+        .select("id, scholar_name, scholar_email, purpose, booked_at, start_time, end_time, faculty_id")
         .order("booked_at", { ascending: false });
 
       if (error) throw error;
-      setBookings(data || []);
+      setAppointments(data || []);
     } catch (err) {
-      console.error("Error fetching bookings:", err);
+      console.error("Error fetching appointments:", err);
     } finally {
       setLoading(false);
     }
@@ -79,7 +96,6 @@ export default function FacultyDashboard() {
       const { data, error } = await supabase
         .from("documents")
         .select("id, title, description, file_url, file_name, created_at")
-        .eq("faculty_id", user?.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -89,20 +105,7 @@ export default function FacultyDashboard() {
     }
   };
 
-  useEffect(() => {
-    // Redirect scholars away from faculty dashboard
-    if (userRole === 'scholar') {
-      navigate('/scholar', { replace: true });
-      return;
-    }
-    
-    if (user?.id && userRole === 'faculty') {
-      fetchBookings();
-      fetchDocuments();
-    }
-  }, [user, userRole, navigate]);
-
-  // ✅ Add Availability Slot
+  // ✅ Add Availability Slot (Admin only)
   const handleAddAvailability = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -112,8 +115,12 @@ export default function FacultyDashboard() {
     }
 
     try {
+      // For admin, we'll use a system/admin user ID or create slots directly
+      // Since admin manages slots, we can use a placeholder or the admin's own ID
+      const adminUserId = user?.id || '00000000-0000-0000-0000-000000000000';
+      
       const { error } = await supabase.from("availability").insert({
-        faculty_id: user?.id,
+        faculty_id: adminUserId, // Using admin ID as the slot manager
         date,
         start_time: startTime,
         end_time: endTime,
@@ -124,7 +131,7 @@ export default function FacultyDashboard() {
 
       toast({
         title: "Success!",
-        description: "Availability added successfully. Slots will be generated automatically.",
+        description: "Availability slot added successfully. Slots will be generated automatically.",
       });
       setSlotDialogOpen(false);
       setDate("");
@@ -151,9 +158,8 @@ export default function FacultyDashboard() {
 
     setUploading(true);
     try {
-      // Upload file to Supabase Storage
       const fileExt = docFile.name.split('.').pop();
-      const fileName = `${user?.id}/${Date.now()}.${fileExt}`;
+      const fileName = `admin/${Date.now()}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
         .from('documents')
@@ -166,14 +172,14 @@ export default function FacultyDashboard() {
         throw uploadError;
       }
 
-      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('documents')
         .getPublicUrl(fileName);
 
-      // Insert document record
+      const adminUserId = user?.id || '00000000-0000-0000-0000-000000000000';
+
       const { error: insertError } = await supabase.from("documents").insert({
-        faculty_id: user?.id,
+        faculty_id: adminUserId,
         title: docTitle,
         description: docDescription || null,
         file_url: publicUrl,
@@ -209,8 +215,8 @@ export default function FacultyDashboard() {
       <Header />
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold">Faculty Dashboard</h1>
-          <p className="text-muted-foreground">Manage your schedule and appointments</p>
+          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+          <p className="text-muted-foreground">Manage slots and view all appointments</p>
         </div>
 
         {/* Two Column Layout for Adding Slots and Documents */}
@@ -396,10 +402,10 @@ export default function FacultyDashboard() {
           </section>
         )}
 
-        {/* ✅ Upcoming Appointments Section */}
+        {/* All Appointments Section */}
         <section>
           <h2 className="text-2xl font-semibold flex items-center gap-2 mb-4">
-            <Clock className="h-5 w-5" /> Upcoming Appointments
+            <Clock className="h-5 w-5" /> All Appointments
           </h2>
 
           {loading ? (
@@ -408,32 +414,32 @@ export default function FacultyDashboard() {
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
               </CardContent>
             </Card>
-          ) : bookings.length === 0 ? (
+          ) : appointments.length === 0 ? (
             <Card className="flex flex-col items-center justify-center py-8">
               <Calendar className="h-12 w-12 text-muted-foreground mb-2" />
-              <p className="text-muted-foreground">No upcoming appointments</p>
+              <p className="text-muted-foreground">No appointments yet</p>
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {bookings.map((booking) => {
-                const startLocal = booking.start_time
-                  ? format(new Date(booking.start_time), "h:mm a")
+              {appointments.map((appointment) => {
+                const startLocal = appointment.start_time
+                  ? format(new Date(appointment.start_time), "h:mm a")
                   : null;
-                const endLocal = booking.end_time
-                  ? format(new Date(booking.end_time), "h:mm a")
+                const endLocal = appointment.end_time
+                  ? format(new Date(appointment.end_time), "h:mm a")
                   : null;
 
                 return (
-                  <Card key={booking.id}>
+                  <Card key={appointment.id}>
                     <CardHeader>
-                      <CardTitle>{booking.scholar_name || "Unknown"}</CardTitle>
-                      <p className="text-sm text-muted-foreground">{booking.scholar_email}</p>
+                      <CardTitle>{appointment.scholar_name || "Unknown"}</CardTitle>
+                      <p className="text-sm text-muted-foreground">{appointment.scholar_email}</p>
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                         <Calendar className="h-4 w-4" />
-                        {booking.start_time
-                          ? format(new Date(booking.start_time), "MMMM d, yyyy")
+                        {appointment.start_time
+                          ? format(new Date(appointment.start_time), "MMMM d, yyyy")
                           : "No date"}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
@@ -442,7 +448,7 @@ export default function FacultyDashboard() {
                           ? `${startLocal} - ${endLocal}`
                           : "Time not set"}
                       </div>
-                      <p className="text-sm">{booking.purpose || "No details"}</p>
+                      <p className="text-sm">{appointment.purpose || "No details"}</p>
                     </CardContent>
                   </Card>
                 );
@@ -454,3 +460,4 @@ export default function FacultyDashboard() {
     </div>
   );
 }
+

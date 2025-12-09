@@ -8,7 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ScholarDashboard from "./pages/ScholarDashboard";
-import FacultyDashboard from "./pages/FacultyDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
 import BookingPage from "./pages/BookingPage";
 import NotFound from "./pages/NotFound";
 
@@ -33,15 +33,15 @@ const App = () => (
               }
             />
             <Route
-              path="/faculty"
+              path="/admin"
               element={
-                <ProtectedRoute allowedRoles={['faculty']}>
-                  <FacultyDashboard />
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboard />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/book/:facultyId"
+              path="/book/:slotId"
               element={
                 <ProtectedRoute allowedRoles={['scholar']}>
                   <BookingPage />
