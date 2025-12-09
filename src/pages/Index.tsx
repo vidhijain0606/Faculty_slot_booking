@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Calendar, Users, Clock, ArrowRight } from 'lucide-react';
+//  manually adding a line to commit 
 
 const Index = () => {
   const { user, userRole, loading } = useAuth();
