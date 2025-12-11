@@ -231,6 +231,11 @@ export default function ScholarDashboard() {
       return;
     }
 
+    if (!user?.id) {
+      toast({ variant: "destructive", title: "Error", description: "You must be signed in to upload." });
+      return;
+    }
+
     setUploading(true);
     try {
       const fileExt = docFile.name.split('.').pop();

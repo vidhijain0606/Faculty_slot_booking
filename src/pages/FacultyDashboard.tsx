@@ -149,6 +149,11 @@ export default function FacultyDashboard() {
       return;
     }
 
+    if (!user?.id) {
+      toast({ variant: "destructive", title: "Error", description: "You must be signed in to upload." });
+      return;
+    }
+
     setUploading(true);
     try {
       // Upload file to Supabase Storage

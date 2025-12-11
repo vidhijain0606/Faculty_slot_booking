@@ -74,6 +74,15 @@ export default function BookingPage() {
       });
     }
 
+    // Ensure we have a signed-in user before proceeding
+    if (!user?.id) {
+      return toast({
+        variant: 'destructive',
+        title: 'Not signed in',
+        description: 'Please sign in again to book this slot.',
+      });
+    }
+
     setLoading(true);
     try {
       // Step 1: Double-check slot availability
@@ -124,7 +133,13 @@ export default function BookingPage() {
         status: 'confirmed',
       });
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        // If someone else booked the same slot first, surface a friendly message
+        if ((insertError as any)?.code === '23505') {
+          throw new Error('This slot was just booked by someone else. Please pick another slot.');
+        }
+        throw insertError;
+      }
 
       // Step 3: Mark that slot as booked
       const { error: updateError } = await supabase
@@ -133,6 +148,21 @@ export default function BookingPage() {
         .eq('id', slot.id);
 
       if (updateError) throw updateError;
+
+      // Step 4: Fire reminder email (best-effort; errors are logged)
+      try {
+        await supabase.functions.invoke('send-slot-reminder', {
+          body: {
+            to: user.email,
+            slotDate: slot.date,
+            startTime: startTimestamp,
+            endTime: endTimestamp,
+            purpose: reason.trim(),
+          },
+        });
+      } catch (emailErr) {
+        console.warn('Reminder email failed', emailErr);
+      }
 
       toast({
         title: 'Success',
