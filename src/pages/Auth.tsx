@@ -14,8 +14,8 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  // Only scholars can sign up - admin is created separately
-  const [role] = useState<'scholar'>('scholar');
+  // All signups are faculty - admin is created separately
+  const role: 'faculty' = 'faculty';
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -40,7 +40,7 @@ export default function Auth() {
         .eq('user_id', userId)
         .maybeSingle();
 
-      const userRole = roleData?.role ?? 'scholar';
+      const userRole = roleData?.role ?? 'faculty';
 
       toast({
         title: 'Welcome back!',
@@ -50,11 +50,11 @@ export default function Auth() {
       // Redirect based on role
       if (userRole === 'admin') {
         navigate('/admin');
-      } else if (userRole === 'scholar') {
-        navigate('/scholar');
+      } else if (userRole === 'faculty') {
+        navigate('/');
       } else {
-        // Faculty or other roles go to scholar page (or you can block them)
-        navigate('/scholar');
+        // Default to Index (faculty dashboard)
+        navigate('/');
       }
     } catch (err: any) {
       toast({
@@ -129,8 +129,8 @@ const handleSignUp = async (e: React.FormEvent) => {
               <Calendar className="h-8 w-8 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Scholar Booking System</CardTitle>
-          <CardDescription>Book appointment slots</CardDescription>
+          <CardTitle className="text-2xl">Faculty Research Portal</CardTitle>
+          <CardDescription>Login to manage scholars and research</CardDescription>
         </CardHeader>
 
         <CardContent>
@@ -202,7 +202,6 @@ const handleSignUp = async (e: React.FormEvent) => {
                     minLength={6}
                   />
                 </div>
-                {/* Only scholars can sign up - role is automatically set to 'scholar' */}
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Create Account

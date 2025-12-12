@@ -49,6 +49,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const currentPath = window.location.pathname;
           if (role === 'admin' && !currentPath.startsWith('/admin')) {
             navigate('/admin', { replace: true });
+          } else if (role === 'faculty' && !currentPath.startsWith('/') && !currentPath.startsWith('/link-document')) {
+            navigate('/', { replace: true });
           } else if (role === 'scholar' && !currentPath.startsWith('/scholar') && !currentPath.startsWith('/book')) {
             navigate('/scholar', { replace: true });
           }
