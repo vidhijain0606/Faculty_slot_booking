@@ -90,12 +90,6 @@ export default function FacultyDashboard() {
   };
 
   useEffect(() => {
-    // Redirect scholars away from faculty dashboard
-    if (userRole === 'scholar') {
-      navigate('/scholar', { replace: true });
-      return;
-    }
-    
     if (user?.id && userRole === 'faculty') {
       fetchBookings();
       fetchDocuments();
@@ -230,7 +224,7 @@ export default function FacultyDashboard() {
                   Add Availability Slot
                 </CardTitle>
                 <CardDescription>
-                  Create time slots for scholars to book appointments
+                  Create time slots for booking appointments
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -303,7 +297,7 @@ export default function FacultyDashboard() {
                   Add Document
                 </CardTitle>
                 <CardDescription>
-                  Upload documents for scholars to access
+                  Upload documents for access
                 </CardDescription>
               </CardHeader>
               <CardContent>

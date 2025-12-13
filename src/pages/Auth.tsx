@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +19,14 @@ export default function Auth() {
   const role: 'faculty' = 'faculty';
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/welcome', { replace: true });
+    }
+  }, [user, authLoading, navigate]);
 
   // ✅ Sign In
   const handleSignIn = async (e: React.FormEvent) => {
@@ -47,15 +56,10 @@ export default function Auth() {
         description: 'Successfully signed in.',
       });
 
-      // Redirect based on role
-      if (userRole === 'admin') {
-        navigate('/admin');
-      } else if (userRole === 'faculty') {
-        navigate('/');
-      } else {
-        // Default to Index (faculty dashboard)
-        navigate('/');
-      }
+      // Redirect to welcome page - wait for auth state to update
+      setTimeout(() => {
+        navigate('/welcome', { replace: true });
+      }, 500);
     } catch (err: any) {
       toast({
         variant: 'destructive',
@@ -120,17 +124,40 @@ const handleSignUp = async (e: React.FormEvent) => {
 };
 
 
+  const VIT_LOGO = '/vit_logo.png';
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/30 to-accent/20 p-4">
-      <Card className="w-full max-w-md shadow-medium">
-        <CardHeader className="text-center space-y-2">
-          <div className="flex justify-center mb-2">
-            <div className="p-3 bg-primary rounded-xl">
-              <Calendar className="h-8 w-8 text-primary-foreground" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/5 p-4 relative overflow-hidden">
+      {/* VIT-themed background with logo-friendly design */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* Blue gradient circles */}
+        <div className="absolute top-20 right-20 w-96 h-96 bg-primary/15 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-20 left-20 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
+        {/* Gold accent circle */}
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-accent/8 rounded-full blur-3xl"></div>
+      </div>
+      
+      <Card className="w-full max-w-md shadow-2xl border-2 border-primary/30 bg-white/95 backdrop-blur-md relative z-10">
+        <CardHeader className="text-center space-y-4 pb-6 bg-gradient-to-b from-primary/5 to-transparent">
+          <div className="flex justify-center mb-4">
+            <div className="relative">
+              {/* Logo background circle with VIT colors */}
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-accent/20 rounded-full blur-2xl scale-150"></div>
+              <div className="relative bg-white rounded-full p-3 shadow-lg border-4 border-primary/20">
+                <img 
+                  src={VIT_LOGO} 
+                  alt="VIT Logo" 
+                  className="h-24 w-24 object-contain"
+                />
+              </div>
             </div>
           </div>
-          <CardTitle className="text-2xl">Faculty Research Portal</CardTitle>
-          <CardDescription>Login to manage scholars and research</CardDescription>
+          <div className="space-y-2">
+            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              Faculty Research Portal
+            </CardTitle>
+            <CardDescription className="text-base font-medium">Login to manage research activities</CardDescription>
+          </div>
         </CardHeader>
 
         <CardContent>
@@ -162,7 +189,11 @@ const handleSignUp = async (e: React.FormEvent) => {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-md hover:shadow-lg transition-all font-semibold" 
+                  disabled={loading}
+                >
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Sign In
                 </Button>
@@ -186,7 +217,7 @@ const handleSignUp = async (e: React.FormEvent) => {
                   <Label>Email</Label>
                   <Input
                     type="email"
-                    placeholder="scholar@university.edu"
+                    placeholder="faculty@university.edu"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -202,7 +233,11 @@ const handleSignUp = async (e: React.FormEvent) => {
                     minLength={6}
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-md hover:shadow-lg transition-all font-semibold" 
+                  disabled={loading}
+                >
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Create Account
                 </Button>

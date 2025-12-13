@@ -1,79 +1,213 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
-import { Link as LinkIcon } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { Calendar, Clock } from 'lucide-react';
 import { Header } from '@/components/Header';
+import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+
+interface Slot {
+  id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+}
 
 const Index = () => {
-  const { user, userRole } = useAuth();
+  const { user, userRole, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [availableSlots, setAvailableSlots] = useState<Slot[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Redirect to auth if not logged in
-  if (!user) {
-    navigate('/auth');
-    return null;
+  // Show loading while checking auth
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
   }
 
-  // Redirect non-faculty users to their respective dashboards
-  if (userRole === 'scholar') {
-    navigate('/scholar');
-    return null;
+  // Wait for userRole to load before redirecting
+  if (!userRole) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
   }
+
+  // Redirect non-faculty users
   if (userRole === 'admin') {
-    navigate('/admin');
+    navigate('/admin', { replace: true });
     return null;
+  }
+  
+  // Only faculty can access this page
+  if (userRole !== 'faculty') {
+    navigate('/auth', { replace: true });
+    return null;
+  }
+
+  // Fetch available slots
+  useEffect(() => {
+    if (user && userRole === 'faculty') {
+      fetchAvailableSlots();
+    } else {
+      // Stop loading if user is not faculty or role not loaded
+      setLoading(false);
+    }
+  }, [user, userRole]);
+
+  const fetchAvailableSlots = async () => {
+    setLoading(true);
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      
+      const { data: allSlots, error: slotsError } = await supabase
+        .from("faculty_slots")
+        .select("id, date, start_time, end_time, status")
+        .eq("status", "available")
+        .gte("date", today)
+        .order("date", { ascending: true })
+        .order("start_time", { ascending: true });
+
+      if (slotsError) {
+        console.error("Slots error:", slotsError);
+        throw slotsError;
+      }
+
+      const { data: appointments, error: appError } = await supabase
+        .from("appointments")
+        .select("slot_id")
+        .not("slot_id", "is", null);
+
+      if (appError) {
+        console.error("Appointments error:", appError);
+        // Don't throw, just use empty array
+        const availableSlots = (allSlots || []).filter(slot => slot);
+        setAvailableSlots(availableSlots);
+        setLoading(false);
+        return;
+      }
+
+      const bookedSlotIds = new Set(
+        (appointments || []).map((a) => a.slot_id).filter(Boolean)
+      );
+
+      const availableSlots = (allSlots || []).filter(
+        (slot) => !bookedSlotIds.has(slot.id)
+      );
+
+      setAvailableSlots(availableSlots);
+    } catch (err: any) {
+      console.error("Error fetching slots:", err);
+      // Set empty array on error so page doesn't hang
+      setAvailableSlots([]);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: err?.message || 'Failed to load available slots. You can still use other features.',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTime = (time: string) => {
+    if (!time) return "";
+    if (time.includes("T")) {
+      const d = new Date(time);
+      if (isNaN(d.getTime())) return time;
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+    return time.split(":")[0] + ":" + time.split(":")[1];
+  };
+
+  const handleBookSlot = (slotId: string) => {
+    navigate(`/book/${slotId}`);
+  };
+
+  // Ensure we have user and role before rendering
+  if (!user || !userRole || userRole !== 'faculty') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
       <Header />
       <main className="container mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-semibold">Faculty Research Portal</h2>
-          <p className="text-muted-foreground mt-2">Manage your scholars and research activities</p>
+        <div className="text-center mb-10">
+          <h2 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-3">
+            Faculty Research Portal
+          </h2>
+          <p className="text-muted-foreground text-lg">Manage your research activities and book appointment slots</p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2 md:grid-cols-2">
-          {/* Column 1: Link Document 1 */}
-          <Card className="shadow-soft">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <LinkIcon className="h-5 w-5" />
-                Link Document
-              </CardTitle>
-              <CardDescription>Link your first document</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button
-                className="w-full"
-                onClick={() => navigate('/link-document-1')}
-              >
-                <LinkIcon className="h-4 w-4 mr-2" />
-                Go to Document Link Page 1
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Column 2: Link Document 2 */}
-          <Card className="shadow-soft">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <LinkIcon className="h-5 w-5" />
-                Link Another Document
-              </CardTitle>
-              <CardDescription>Link your second document</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button
-                className="w-full"
-                onClick={() => navigate('/link-document-2')}
-              >
-                <LinkIcon className="h-4 w-4 mr-2" />
-                Go to Document Link Page 2
-              </Button>
-            </CardContent>
-          </Card>
+        <div className="max-w-5xl mx-auto">
+          {/* Available Slots for Booking */}
+          <Card className="shadow-lg border-2 border-primary/10 bg-card/95 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-primary/10 to-secondary/10 border-b border-primary/20">
+                <CardTitle className="flex items-center gap-3 text-2xl">
+                  <div className="p-2 bg-primary/20 rounded-lg">
+                    <Calendar className="h-6 w-6 text-primary" />
+                  </div>
+                  Available Slots
+                </CardTitle>
+                <CardDescription className="text-base font-medium">Book available time slots for your research meetings</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                  </div>
+                ) : availableSlots.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">No available slots at the moment</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2 p-4">
+                    {availableSlots.map((slot) => (
+                      <Card key={slot.id} className="hover:shadow-xl transition-all duration-300 border-2 border-primary/10 hover:border-primary/30 bg-gradient-to-br from-card to-primary/5">
+                        <CardHeader>
+                          <CardTitle className="text-lg font-bold">
+                            {(() => {
+                              const parsed = new Date(`${slot.date}T00:00:00`);
+                              return !isNaN(parsed.getTime())
+                                ? format(parsed, "PPP")
+                                : slot.date;
+                            })()}
+                          </CardTitle>
+                          <CardDescription className="flex items-center gap-2 font-medium">
+                            <Clock className="h-4 w-4 text-primary" />
+                            {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <Button
+                            className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-md hover:shadow-lg transition-all font-semibold"
+                            onClick={() => handleBookSlot(slot.id)}
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            Book This Slot
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
         </div>
       </main>
     </div>

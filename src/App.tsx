@@ -5,12 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import Welcome from "./pages/Welcome";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import ScholarDashboard from "./pages/ScholarDashboard";
 import FacultyDashboard from "./pages/FacultyDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import BookingPage from "./pages/BookingPage";
+import UploadDocument from "./pages/UploadDocument";
 import LinkDocument1 from "./pages/LinkDocument1";
 import LinkDocument2 from "./pages/LinkDocument2";
 import NotFound from "./pages/NotFound";
@@ -25,16 +26,18 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<Auth />} />
+            <Route path="/welcome" element={
+              <ProtectedRoute allowedRoles={['faculty', 'admin']}>
+                <Welcome />
+              </ProtectedRoute>
+            } />
+            <Route path="/dashboard" element={
+              <ProtectedRoute allowedRoles={['faculty']}>
+                <Index />
+              </ProtectedRoute>
+            } />
             <Route path="/auth" element={<Auth />} />
-            <Route
-              path="/scholar"
-              element={
-                <ProtectedRoute allowedRoles={['scholar']}>
-                  <ScholarDashboard />
-                </ProtectedRoute>
-              }
-            />
             <Route
               path="/faculty"
               element={
@@ -56,6 +59,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={['faculty']}>
                   <BookingPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/upload-document"
+              element={
+                <ProtectedRoute allowedRoles={['faculty']}>
+                  <UploadDocument />
                 </ProtectedRoute>
               }
             />

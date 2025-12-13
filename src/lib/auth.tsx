@@ -47,21 +47,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (shouldRedirect) {
           // Only redirect if we're not already on the correct page
           const currentPath = window.location.pathname;
+          // Don't redirect if already on welcome page or dashboard - let those pages handle their own logic
+          if (currentPath === '/welcome' || currentPath.startsWith('/dashboard') || currentPath.startsWith('/admin')) {
+            return;
+          }
+          // Don't redirect from auth page - let Auth component handle it
+          if (currentPath === '/auth' || currentPath === '/') {
+            return;
+          }
+          // For other pages, redirect based on role
           if (role === 'admin' && !currentPath.startsWith('/admin')) {
             navigate('/admin', { replace: true });
-          } else if (role === 'faculty' && !currentPath.startsWith('/') && !currentPath.startsWith('/link-document')) {
-            navigate('/', { replace: true });
-          } else if (role === 'scholar' && !currentPath.startsWith('/scholar') && !currentPath.startsWith('/book')) {
-            navigate('/scholar', { replace: true });
+          } else if (role === 'faculty' && !currentPath.startsWith('/dashboard') && !currentPath.startsWith('/link-document') && !currentPath.startsWith('/book') && !currentPath.startsWith('/upload-document')) {
+            navigate('/dashboard', { replace: true });
           }
         }
       } else {
         console.warn('⚠️ No role found for user:', userId);
-        setUserRole('scholar'); // Default to scholar if no role found
+        setUserRole('faculty'); // Default to faculty if no role found
       }
     } catch (err) {
       console.error('Error fetching user role:', err);
-      setUserRole('scholar'); // Default to scholar on error
+      setUserRole('faculty'); // Default to faculty on error
     } finally {
       setLoading(false);
     }

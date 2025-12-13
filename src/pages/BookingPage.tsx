@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -29,22 +28,58 @@ export default function BookingPage() {
   const { toast } = useToast();
 
   const [slot, setSlot] = useState<Slot | null>(null);
-  const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [showBookingPopup, setShowBookingPopup] = useState(false);
+  const [userProfile, setUserProfile] = useState<{ name: string; email: string } | null>(null);
   
-  // Scholar details form state
-  const [scholarDetails, setScholarDetails] = useState({
+  // Form state
+  const [formData, setFormData] = useState({
+    employeeId: '',
+    employeeName: '',
+    employeeEmail: '',
     scholarName: '',
     scholarId: '',
     projectTitle: '',
-    employeeId: '',
-    employeeName: '',
+    meetingType: 'dc1',
+    finalReview: '',
   });
 
   useEffect(() => {
     if (slotId) fetchSlot();
-  }, [slotId]);
+    if (user?.id) fetchUserProfile();
+  }, [slotId, user]);
+
+  const fetchUserProfile = async () => {
+    if (!user?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('name, email')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) {
+        setUserProfile(data);
+        // Auto-fill employee details
+        setFormData(prev => ({
+          ...prev,
+          employeeName: data.name || user.email?.split('@')[0] || '',
+          employeeEmail: data.email || user.email || '',
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+      // Fallback to user email
+      if (user.email) {
+        setFormData(prev => ({
+          ...prev,
+          employeeEmail: user.email || '',
+          employeeName: user.email?.split('@')[0] || '',
+        }));
+      }
+    }
+  };
 
   const fetchSlot = async () => {
     try {
@@ -62,7 +97,7 @@ export default function BookingPage() {
           title: 'Error',
           description: 'Slot not found or already booked',
         });
-        navigate('/');
+        navigate('/dashboard');
         return;
       }
       setSlot(data);
@@ -72,26 +107,27 @@ export default function BookingPage() {
         title: 'Error',
         description: 'Failed to load slot information',
       });
-      navigate('/');
+      navigate('/dashboard');
     }
   };
 
   const handleBooking = async () => {
-    if (!slot || !user || !reason.trim()) {
+    if (!slot || !user) {
       return toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Please provide a reason for booking',
+        description: 'Please sign in to book this slot.',
       });
     }
 
-    // Validate scholar details
-    if (!scholarDetails.scholarName || !scholarDetails.scholarId || !scholarDetails.projectTitle || 
-        !scholarDetails.employeeId || !scholarDetails.employeeName) {
+    // Validate all required fields
+    if (!formData.employeeId || !formData.employeeName || !formData.employeeEmail ||
+        !formData.scholarName || !formData.scholarId || !formData.projectTitle ||
+        !formData.meetingType || !formData.finalReview) {
       return toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Please fill in all scholar details',
+        description: 'Please fill in all required fields',
       });
     }
 
@@ -120,7 +156,7 @@ export default function BookingPage() {
           description: 'This slot has already been booked. Please select another.',
         });
         setLoading(false);
-        navigate('/');
+        navigate('/dashboard');
         return;
       }
 
@@ -141,21 +177,21 @@ export default function BookingPage() {
         throw new Error('Invalid time format. Please try again.');
       }
 
-      // Save scholar details to slot_requests
+      // Save booking details to slot_requests
       await supabase.from('slot_requests').insert({
-        scholar_name: scholarDetails.scholarName,
-        emp_id: scholarDetails.employeeId,
-        registration: scholarDetails.scholarId,
-        meeting_type: 'dc1',
-        notes: `Project Title: ${scholarDetails.projectTitle}, Employee Name: ${scholarDetails.employeeName}`,
+        scholar_name: formData.scholarName,
+        emp_id: formData.employeeId,
+        registration: formData.scholarId,
+        meeting_type: formData.meetingType,
+        notes: `Project Title: ${formData.projectTitle}, Employee Name: ${formData.employeeName}, Employee Email: ${formData.employeeEmail}, Final Review: ${formData.finalReview}`,
       });
 
       const { error: insertError } = await supabase.from('appointments').insert({
         faculty_id: slot.faculty_id || '00000000-0000-0000-0000-000000000000',
         scholar_id: user.id,
-        scholar_name: scholarDetails.scholarName,
-        scholar_email: user.email,
-        purpose: reason.trim(),
+        scholar_name: formData.scholarName,
+        scholar_email: formData.employeeEmail,
+        purpose: `Meeting Type: ${formData.meetingType}, Final Review: ${formData.finalReview}`,
         booked_at: new Date().toISOString(),
         start_time: startTimestamp,
         end_time: endTimestamp,
@@ -232,28 +268,36 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
       <Header />
       <main className="container mx-auto px-4 py-8">
-        <Button variant="ghost" className="mb-6" onClick={() => navigate('/')}>
+        <Button 
+          variant="ghost" 
+          className="mb-6 hover:bg-primary/10 transition-colors" 
+          onClick={() => navigate('/dashboard')}
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Dashboard
         </Button>
 
-        <Card className="max-w-2xl mx-auto shadow-medium">
-          <CardHeader>
-            <CardTitle className="text-2xl">Book Appointment</CardTitle>
-            <CardDescription>
-              Book this time slot
+        <Card className="max-w-3xl mx-auto shadow-2xl border-2 border-primary/20 bg-card/95 backdrop-blur-sm">
+          <CardHeader className="bg-gradient-to-r from-primary/10 to-secondary/10 border-b border-primary/20">
+            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              Book Appointment
+            </CardTitle>
+            <CardDescription className="text-base font-medium">
+              Complete the form below to book this time slot
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6">
             {/* Slot Information */}
-            <div className="space-y-4 p-4 bg-muted rounded-lg">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-muted-foreground" />
-                <span className="font-medium">
+            <div className="space-y-4 p-6 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-xl border-2 border-primary/20 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/20 rounded-lg">
+                  <Calendar className="h-5 w-5 text-primary" />
+                </div>
+                <span className="font-bold text-lg">
                   {(() => {
                     const parsed = new Date(`${slot.date}T00:00:00`);
                     return !isNaN(parsed.getTime())
@@ -262,55 +306,27 @@ export default function BookingPage() {
                   })()}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-muted-foreground" />
-                <span className="font-medium">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-secondary/20 rounded-lg">
+                  <Clock className="h-5 w-5 text-secondary" />
+                </div>
+                <span className="font-bold text-lg">
                   {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
                 </span>
               </div>
             </div>
 
-            {/* Scholar Details Form */}
-            <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
-              <h3 className="font-semibold text-lg">Scholar Details</h3>
+            {/* Employee Details (Auto-filled) */}
+            <div className="space-y-4 p-6 bg-gradient-to-br from-primary/5 to-secondary/5 rounded-xl border-2 border-primary/10 shadow-md">
+              <h3 className="font-bold text-xl text-primary mb-4">Employee Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="scholarName">Scholar Name*</Label>
-                  <Input
-                    id="scholarName"
-                    placeholder="Enter scholar name"
-                    value={scholarDetails.scholarName}
-                    onChange={(e) => setScholarDetails((s) => ({ ...s, scholarName: e.target.value }))}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="scholarId">Scholar ID*</Label>
-                  <Input
-                    id="scholarId"
-                    placeholder="Scholar registration ID"
-                    value={scholarDetails.scholarId}
-                    onChange={(e) => setScholarDetails((s) => ({ ...s, scholarId: e.target.value }))}
-                    required
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="projectTitle">Project Title*</Label>
-                  <Input
-                    id="projectTitle"
-                    placeholder="Title of research project"
-                    value={scholarDetails.projectTitle}
-                    onChange={(e) => setScholarDetails((s) => ({ ...s, projectTitle: e.target.value }))}
-                    required
-                  />
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="employeeId">Employee ID*</Label>
                   <Input
                     id="employeeId"
                     placeholder="Employee ID"
-                    value={scholarDetails.employeeId}
-                    onChange={(e) => setScholarDetails((s) => ({ ...s, employeeId: e.target.value }))}
+                    value={formData.employeeId}
+                    onChange={(e) => setFormData((s) => ({ ...s, employeeId: e.target.value }))}
                     required
                   />
                 </div>
@@ -319,30 +335,97 @@ export default function BookingPage() {
                   <Input
                     id="employeeName"
                     placeholder="Employee name"
-                    value={scholarDetails.employeeName}
-                    onChange={(e) => setScholarDetails((s) => ({ ...s, employeeName: e.target.value }))}
+                    value={formData.employeeName}
+                    onChange={(e) => setFormData((s) => ({ ...s, employeeName: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="employeeEmail">Employee Email*</Label>
+                  <Input
+                    id="employeeEmail"
+                    type="email"
+                    placeholder="Employee email"
+                    value={formData.employeeEmail}
+                    onChange={(e) => setFormData((s) => ({ ...s, employeeEmail: e.target.value }))}
                     required
                   />
                 </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="reason">Reason for Booking</Label>
-              <Textarea
-                id="reason"
-                placeholder="Brief description of what you'd like to discuss..."
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                rows={4}
-              />
+            {/* Research Scholar Details */}
+            <div className="space-y-4 p-6 bg-gradient-to-br from-accent/5 to-primary/5 rounded-xl border-2 border-accent/10 shadow-md">
+              <h3 className="font-bold text-xl text-accent-foreground mb-4">Research Scholar Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="scholarName">Research Scholar Name*</Label>
+                  <Input
+                    id="scholarName"
+                    placeholder="Enter research scholar name"
+                    value={formData.scholarName}
+                    onChange={(e) => setFormData((s) => ({ ...s, scholarName: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="scholarId">Scholar ID*</Label>
+                  <Input
+                    id="scholarId"
+                    placeholder="Scholar registration ID"
+                    value={formData.scholarId}
+                    onChange={(e) => setFormData((s) => ({ ...s, scholarId: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="projectTitle">Project Title*</Label>
+                  <Input
+                    id="projectTitle"
+                    placeholder="Title of research project"
+                    value={formData.projectTitle}
+                    onChange={(e) => setFormData((s) => ({ ...s, projectTitle: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="meetingType">Type of Meeting*</Label>
+                  <select
+                    id="meetingType"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={formData.meetingType}
+                    onChange={(e) => setFormData((s) => ({ ...s, meetingType: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select meeting type</option>
+                    <option value="dc1">DC1</option>
+                    <option value="dc2">DC2</option>
+                    <option value="dc3">DC3</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="finalReview">Final Review*</Label>
+                  <select
+                    id="finalReview"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={formData.finalReview}
+                    onChange={(e) => setFormData((s) => ({ ...s, finalReview: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select review option</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <Button
               onClick={handleBooking}
-              disabled={loading || !reason.trim() || !scholarDetails.scholarName || !scholarDetails.scholarId || 
-                       !scholarDetails.projectTitle || !scholarDetails.employeeId || !scholarDetails.employeeName}
-              className="w-full"
+              disabled={loading || !formData.employeeId || !formData.employeeName || !formData.employeeEmail ||
+                       !formData.scholarName || !formData.scholarId || !formData.projectTitle ||
+                       !formData.meetingType || !formData.finalReview}
+              className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-lg hover:shadow-xl transition-all text-lg py-6 font-bold"
             >
               {loading ? (
                 <>
@@ -371,7 +454,7 @@ export default function BookingPage() {
             <div className="flex justify-end gap-2 mt-4">
               <Button onClick={() => {
                 setShowBookingPopup(false);
-                navigate('/');
+                navigate('/dashboard');
               }}>
                 OK
               </Button>

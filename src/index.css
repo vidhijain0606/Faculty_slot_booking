@@ -8,54 +8,56 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Academic Professional Theme - Teal & Beige Palette */
-    --background: 0 0% 100%;
-    --foreground: 201 50% 21%;
+    /* VIT Theme - Blue & Yellow/Gold */
+    --background: 0 0% 98%;
+    --foreground: 214 32% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 201 50% 21%;
+    --card-foreground: 214 32% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 201 50% 21%;
+    --popover-foreground: 214 32% 15%;
 
-    --primary: 201 50% 21%; /* #1B3C53 */
+    --primary: 214 100% 50%; /* VIT Blue #0066CC */
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 201 49% 28%; /* #234C6A */
+    --primary-hover: 214 100% 45%;
 
-    --secondary: 202 29% 40%; /* #456882 */
+    --secondary: 214 85% 60%; /* Lighter Blue */
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 32 24% 90%;
-    --muted-foreground: 201 30% 35%;
+    --muted: 214 20% 96%;
+    --muted-foreground: 214 15% 45%;
 
-    --accent: 32 24% 76%; /* #D2C1B6 */
-    --accent-foreground: 201 50% 21%;
+    --accent: 45 100% 55%; /* VIT Gold/Yellow #FFB800 */
+    --accent-foreground: 214 32% 15%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 32 24% 85%;
-    --input: 32 24% 85%;
-    --ring: 201 50% 21%;
+    --border: 214 25% 90%;
+    --input: 214 25% 90%;
+    --ring: 214 100% 50%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 201 50% 21%;
+    --sidebar-background: 214 100% 50%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 32 24% 76%;
-    --sidebar-primary-foreground: 201 50% 21%;
-    --sidebar-accent: 201 49% 28%;
+    --sidebar-primary: 45 100% 55%;
+    --sidebar-primary-foreground: 214 32% 15%;
+    --sidebar-accent: 214 85% 60%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 201 49% 28%;
-    --sidebar-ring: 32 24% 76%;
+    --sidebar-border: 214 25% 90%;
+    --sidebar-ring: 214 100% 50%;
 
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(201 50% 21%), hsl(201 49% 28%));
-    --gradient-accent: linear-gradient(135deg, hsl(32 24% 76%), hsl(32 24% 85%));
+    /* VIT Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(214 100% 50%), hsl(214 85% 60%));
+    --gradient-accent: linear-gradient(135deg, hsl(45 100% 55%), hsl(45 95% 50%));
+    --gradient-hero: linear-gradient(135deg, hsl(214 100% 50%) 0%, hsl(214 85% 60%) 50%, hsl(45 100% 55%) 100%);
     
     /* Shadows */
-    --shadow-soft: 0 4px 12px hsl(201 50% 21% / 0.1);
-    --shadow-medium: 0 8px 24px hsl(201 50% 21% / 0.15);
+    --shadow-soft: 0 2px 8px hsl(214 100% 50% / 0.1);
+    --shadow-medium: 0 4px 16px hsl(214 100% 50% / 0.15);
+    --shadow-large: 0 8px 32px hsl(214 100% 50% / 0.2);
   }
 
   .dark {

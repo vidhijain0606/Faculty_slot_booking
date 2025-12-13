@@ -31,16 +31,19 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   // Role-based redirects
-  if (userRole === 'admin' && location.pathname.startsWith('/scholar')) {
+  if (userRole === 'admin' && location.pathname.startsWith('/dashboard')) {
     return <Navigate to="/admin" replace />;
   }
 
-  if (userRole === 'scholar' && location.pathname.startsWith('/admin')) {
-    return <Navigate to="/scholar" replace />;
+  if (userRole === 'faculty' && location.pathname.startsWith('/admin')) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   // Restrict specific roles
   if (allowedRoles && !allowedRoles.includes(userRole)) {
+    if (userRole === 'faculty') {
+      return <Navigate to="/dashboard" replace />;
+    }
     return <Navigate to="/" replace />;
   }
 

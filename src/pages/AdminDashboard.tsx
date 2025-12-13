@@ -59,8 +59,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     // Redirect non-admins away
     if (userRole && userRole !== 'admin') {
-      if (userRole === 'scholar') {
-        navigate('/scholar', { replace: true });
+      if (userRole === 'faculty') {
+        navigate('/dashboard', { replace: true });
       } else {
         navigate('/', { replace: true });
       }
@@ -231,7 +231,7 @@ export default function AdminDashboard() {
                   Add Availability Slot
                 </CardTitle>
                 <CardDescription>
-                  Create time slots for scholars to book appointments
+                  Create time slots for booking appointments
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -304,7 +304,7 @@ export default function AdminDashboard() {
                   Add Document
                 </CardTitle>
                 <CardDescription>
-                  Upload documents for scholars to access
+                  Upload documents for access
                 </CardDescription>
               </CardHeader>
               <CardContent>
