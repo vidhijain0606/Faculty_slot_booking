@@ -448,7 +448,7 @@ export default function BookingPage() {
             <DialogHeader>
               <DialogTitle>Slot Booked Successfully!</DialogTitle>
               <DialogDescription>
-                Please book slot on VTOP rather than sending an email.
+                Please book the slot on VTOP.
               </DialogDescription>
             </DialogHeader>
             <div className="flex justify-end gap-2 mt-4">

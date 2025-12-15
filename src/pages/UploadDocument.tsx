@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, FileText, Link as LinkIcon } from 'lucide-react';
+import { ArrowLeft, Upload } from 'lucide-react';
 
 export default function UploadDocument() {
   const { user } = useAuth();
@@ -102,115 +102,70 @@ export default function UploadDocument() {
           Back to Dashboard
         </Button>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Main Upload Form */}
-          <div className="lg:col-span-2">
-            <Card className="shadow-medium">
-              <CardHeader>
-                <CardTitle className="text-2xl flex items-center gap-2">
-                  <Upload className="h-6 w-6" />
-                  Upload Document
-                </CardTitle>
-                <CardDescription>
-                  Upload a document to the system
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleUpload} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Document Title*</Label>
-                    <Input
-                      id="title"
-                      type="text"
-                      placeholder="Enter document title"
-                      value={docTitle}
-                      onChange={(e) => setDocTitle(e.target.value)}
-                      required
-                    />
-                  </div>
+        <div className="max-w-2xl mx-auto">
+          <Card className="shadow-medium">
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <Upload className="h-6 w-6" />
+                Upload Document
+              </CardTitle>
+              <CardDescription>
+                Upload a document to the system
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleUpload} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Document Title*</Label>
+                  <Input
+                    id="title"
+                    type="text"
+                    placeholder="Enter document title"
+                    value={docTitle}
+                    onChange={(e) => setDocTitle(e.target.value)}
+                    required
+                  />
+                </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description (Optional)</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="Enter document description"
-                      value={docDescription}
-                      onChange={(e) => setDocDescription(e.target.value)}
-                      rows={4}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description (Optional)</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Enter document description"
+                    value={docDescription}
+                    onChange={(e) => setDocDescription(e.target.value)}
+                    rows={4}
+                  />
+                </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="file">File*</Label>
-                    <Input
-                      id="file"
-                      type="file"
-                      onChange={(e) => setDocFile(e.target.files?.[0] || null)}
-                      required
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="file">File*</Label>
+                  <Input
+                    id="file"
+                    type="file"
+                    onChange={(e) => setDocFile(e.target.files?.[0] || null)}
+                    required
+                  />
+                </div>
 
-                  <Button type="submit" className="w-full" disabled={uploading}>
-                    {uploading ? (
-                      <>
-                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                        Uploading...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="mr-2 h-4 w-4" />
-                        Upload Document
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sidebar: Link Documents */}
-          <div className="space-y-6">
-            <Card className="shadow-soft">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <LinkIcon className="h-5 w-5" />
-                  Link Document 1
-                </CardTitle>
-                <CardDescription>Link your first document</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full"
-                  onClick={() => navigate('/link-document-1')}
-                >
-                  <LinkIcon className="h-4 w-4 mr-2" />
-                  Go to Document Link Page 1
+                <Button type="submit" className="w-full" disabled={uploading}>
+                  {uploading ? (
+                    <>
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload Document
+                    </>
+                  )}
                 </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-soft">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <LinkIcon className="h-5 w-5" />
-                  Link Document 2
-                </CardTitle>
-                <CardDescription>Link your second document</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full"
-                  onClick={() => navigate('/link-document-2')}
-                >
-                  <LinkIcon className="h-4 w-4 mr-2" />
-                  Go to Document Link Page 2
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+              </form>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>
   );
 }
-

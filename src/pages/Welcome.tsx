@@ -119,13 +119,13 @@ export default function Welcome() {
               Welcome to VIT Scope Research Portal
             </CardDescription>
             <p className="text-base text-muted-foreground">
-              Manage your research activities, book slots, and link documents
+              Manage your research activities, book slots, and upload documents
             </p>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-6 pb-8">
           <p className="text-muted-foreground text-center text-lg max-w-xl">
-            Access your faculty dashboard to manage scholars, book appointment slots, and organize your research documents with ease.
+            Access dashboard to manage and  book appointment slots, and organize your research documents with ease.
           </p>
           <Button 
             size="lg" 

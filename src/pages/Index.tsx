@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Clock } from 'lucide-react';
+import { Calendar, Clock, CheckCircle } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -17,11 +17,22 @@ interface Slot {
   status: string;
 }
 
+interface BookedAppointment {
+  id: string;
+  scholar_name: string;
+  scholar_email: string;
+  purpose: string;
+  start_time: string;
+  end_time: string;
+  booked_at: string;
+}
+
 const Index = () => {
   const { user, userRole, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [availableSlots, setAvailableSlots] = useState<Slot[]>([]);
+  const [bookedAppointments, setBookedAppointments] = useState<BookedAppointment[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Show loading while checking auth
@@ -54,12 +65,12 @@ const Index = () => {
     return null;
   }
 
-  // Fetch available slots
+  // Fetch available slots and booked appointments
   useEffect(() => {
     if (user && userRole === 'faculty') {
       fetchAvailableSlots();
+      fetchBookedAppointments();
     } else {
-      // Stop loading if user is not faculty or role not loaded
       setLoading(false);
     }
   }, [user, userRole]);
@@ -89,7 +100,6 @@ const Index = () => {
 
       if (appError) {
         console.error("Appointments error:", appError);
-        // Don't throw, just use empty array
         const availableSlots = (allSlots || []).filter(slot => slot);
         setAvailableSlots(availableSlots);
         setLoading(false);
@@ -107,7 +117,6 @@ const Index = () => {
       setAvailableSlots(availableSlots);
     } catch (err: any) {
       console.error("Error fetching slots:", err);
-      // Set empty array on error so page doesn't hang
       setAvailableSlots([]);
       toast({
         variant: 'destructive',
@@ -116,6 +125,30 @@ const Index = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBookedAppointments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("id, scholar_name, scholar_email, purpose, start_time, end_time, booked_at")
+        .eq("faculty_id", user?.id)
+        .order("start_time", { ascending: true });
+
+      if (error) {
+        console.error("Error fetching booked appointments:", error);
+        throw error;
+      }
+
+      setBookedAppointments(data || []);
+    } catch (err: any) {
+      console.error("Error fetching booked appointments:", err);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to load booked appointments.',
+      });
     }
   };
 
@@ -153,61 +186,128 @@ const Index = () => {
           <p className="text-muted-foreground text-lg">Manage your research activities and book appointment slots</p>
         </div>
 
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-5xl mx-auto space-y-8">
           {/* Available Slots for Booking */}
           <Card className="shadow-lg border-2 border-primary/10 bg-card/95 backdrop-blur-sm">
             <CardHeader className="bg-gradient-to-r from-primary/10 to-secondary/10 border-b border-primary/20">
-                <CardTitle className="flex items-center gap-3 text-2xl">
-                  <div className="p-2 bg-primary/20 rounded-lg">
-                    <Calendar className="h-6 w-6 text-primary" />
-                  </div>
-                  Available Slots
-                </CardTitle>
-                <CardDescription className="text-base font-medium">Book available time slots for your research meetings</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-                  </div>
-                ) : availableSlots.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8">
-                    <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No available slots at the moment</p>
-                  </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2 p-4">
-                    {availableSlots.map((slot) => (
-                      <Card key={slot.id} className="hover:shadow-xl transition-all duration-300 border-2 border-primary/10 hover:border-primary/30 bg-gradient-to-br from-card to-primary/5">
-                        <CardHeader>
-                          <CardTitle className="text-lg font-bold">
-                            {(() => {
-                              const parsed = new Date(`${slot.date}T00:00:00`);
-                              return !isNaN(parsed.getTime())
-                                ? format(parsed, "PPP")
-                                : slot.date;
-                            })()}
-                          </CardTitle>
-                          <CardDescription className="flex items-center gap-2 font-medium">
-                            <Clock className="h-4 w-4 text-primary" />
-                            {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <Button
-                            className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-md hover:shadow-lg transition-all font-semibold"
-                            onClick={() => handleBookSlot(slot.id)}
-                          >
-                            <Calendar className="mr-2 h-4 w-4" />
-                            Book This Slot
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              <CardTitle className="flex items-center gap-3 text-2xl">
+                <div className="p-2 bg-primary/20 rounded-lg">
+                  <Calendar className="h-6 w-6 text-primary" />
+                </div>
+                Available Slots
+              </CardTitle>
+              <CardDescription className="text-base font-medium">Book available time slots for your research meetings</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                </div>
+              ) : availableSlots.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No available slots at the moment</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 p-4">
+                  {availableSlots.map((slot) => (
+                    <Card key={slot.id} className="hover:shadow-xl transition-all duration-300 border-2 border-primary/10 hover:border-primary/30 bg-gradient-to-br from-card to-primary/5">
+                      <CardHeader>
+                        <CardTitle className="text-lg font-bold">
+                          {(() => {
+                            const parsed = new Date(`${slot.date}T00:00:00`);
+                            return !isNaN(parsed.getTime())
+                              ? format(parsed, "PPP")
+                              : slot.date;
+                          })()}
+                        </CardTitle>
+                        <CardDescription className="flex items-center gap-2 font-medium">
+                          <Clock className="h-4 w-4 text-primary" />
+                          {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <Button
+                          className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-md hover:shadow-lg transition-all font-semibold"
+                          onClick={() => handleBookSlot(slot.id)}
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
+                          Book This Slot
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Booked Slot Details Section */}
+          <Card className="shadow-lg border-2 border-accent/10 bg-card/95 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-accent/10 to-primary/10 border-b border-accent/20">
+              <CardTitle className="flex items-center gap-3 text-2xl">
+                <div className="p-2 bg-accent/20 rounded-lg">
+                  <CheckCircle className="h-6 w-6 text-accent-foreground" />
+                </div>
+                Booked Slot Details
+              </CardTitle>
+              <CardDescription className="text-base font-medium">Your confirmed appointment bookings</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                </div>
+              ) : bookedAppointments.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <CheckCircle className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No booked appointments yet</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 p-4">
+                  {bookedAppointments.map((appointment) => (
+                    <Card key={appointment.id} className="hover:shadow-xl transition-all duration-300 border-2 border-accent/10 hover:border-accent/30 bg-gradient-to-br from-card to-accent/5">
+                      <CardHeader>
+                        <CardTitle className="text-lg font-bold">
+                          {appointment.scholar_name || "Unknown Scholar"}
+                        </CardTitle>
+                        <CardDescription className="text-sm">
+                          {appointment.scholar_email}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="h-4 w-4 text-accent-foreground" />
+                          <span className="font-medium">
+                            {appointment.start_time
+                              ? format(new Date(appointment.start_time), "PPP")
+                              : "No date"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="h-4 w-4 text-accent-foreground" />
+                          <span className="font-medium">
+                            {appointment.start_time && appointment.end_time
+                              ? `${formatTime(appointment.start_time)} - ${formatTime(appointment.end_time)}`
+                              : "Time not set"}
+                          </span>
+                        </div>
+                        <div className="pt-2 border-t border-accent/10">
+                          <p className="text-sm text-muted-foreground font-medium">Purpose:</p>
+                          <p className="text-sm mt-1">{appointment.purpose || "No purpose specified"}</p>
+                        </div>
+                        <div className="pt-2">
+                          <p className="text-xs text-muted-foreground">
+                            Booked: {format(new Date(appointment.booked_at), "PPP 'at' p")}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>
