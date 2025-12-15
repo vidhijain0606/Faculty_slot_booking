@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Clock, PlusCircle, FileText, Upload } from "lucide-react";
+import { Calendar, Clock, PlusCircle, FileText, Upload, CheckCircle2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Appointment {
   id: string;
@@ -22,6 +24,25 @@ interface Appointment {
   start_time?: string;
   end_time?: string;
   faculty_id?: string;
+}
+
+interface BookedSlot {
+  id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  faculty_id: string;
+  appointment?: {
+    scholar_name: string;
+    scholar_email: string;
+    purpose: string;
+    booked_at: string;
+  };
+  faculty?: {
+    name: string;
+    email: string;
+  };
 }
 
 interface Document {
@@ -37,6 +58,7 @@ export default function AdminDashboard() {
   const { user, userRole } = useAuth();
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [bookedSlots, setBookedSlots] = useState<BookedSlot[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [slotDialogOpen, setSlotDialogOpen] = useState(false);
@@ -69,6 +91,7 @@ export default function AdminDashboard() {
     
     if (user?.id && userRole === 'admin') {
       fetchAppointments();
+      fetchAllBookedSlots();
       fetchDocuments();
     }
   }, [user, userRole, navigate]);
@@ -87,6 +110,88 @@ export default function AdminDashboard() {
       console.error("Error fetching appointments:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ✅ Fetch ALL Booked Slots (all appointments made by any user)
+  const fetchAllBookedSlots = async () => {
+    try {
+      // Get all appointments (these represent booked slots)
+      const { data: appointments, error: appError } = await supabase
+        .from("appointments")
+        .select(`
+          id,
+          slot_id,
+          scholar_id,
+          scholar_name,
+          scholar_email,
+          purpose,
+          booked_at,
+          start_time,
+          end_time,
+          status
+        `)
+        .order("start_time", { ascending: true });
+
+      if (appError) throw appError;
+
+      if (!appointments || appointments.length === 0) {
+        setBookedSlots([]);
+        return;
+      }
+
+      // Fetch slot details for these appointments
+      const slotIds = appointments.map(a => a.slot_id).filter(Boolean);
+      
+      const { data: slots, error: slotsError } = await supabase
+        .from("faculty_slots")
+        .select("id, date, start_time, end_time, faculty_id")
+        .in("id", slotIds);
+
+      if (slotsError) throw slotsError;
+
+      // Fetch user profiles (both who booked - scholar_id)
+      const userIds = [...new Set([
+        ...appointments.map(a => a.scholar_id),
+        ...(slots || []).map(s => s.faculty_id)
+      ].filter(Boolean))];
+
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, name, email")
+        .in("id", userIds);
+
+      if (profileError) throw profileError;
+
+      // Merge all data together
+      const mergedSlots: BookedSlot[] = appointments.map(appointment => {
+        const slot = slots?.find(s => s.id === appointment.slot_id);
+        const bookedByProfile = profiles?.find(p => p.id === appointment.scholar_id);
+        
+        return {
+          id: appointment.id,
+          date: slot?.date || format(new Date(appointment.start_time), "yyyy-MM-dd"),
+          start_time: slot?.start_time || appointment.start_time,
+          end_time: slot?.end_time || appointment.end_time,
+          status: appointment.status || 'confirmed',
+          faculty_id: slot?.faculty_id || '',
+          appointment: {
+            scholar_name: appointment.scholar_name,
+            scholar_email: appointment.scholar_email,
+            purpose: appointment.purpose,
+            booked_at: appointment.booked_at,
+          },
+          faculty: bookedByProfile ? {
+            name: bookedByProfile.name,
+            email: bookedByProfile.email,
+          } : undefined,
+        };
+      });
+
+      setBookedSlots(mergedSlots);
+    } catch (err) {
+      console.error("Error fetching booked slots:", err);
+      setBookedSlots([]);
     }
   };
 
@@ -115,12 +220,10 @@ export default function AdminDashboard() {
     }
 
     try {
-      // For admin, we'll use a system/admin user ID or create slots directly
-      // Since admin manages slots, we can use a placeholder or the admin's own ID
       const adminUserId = user?.id || '00000000-0000-0000-0000-000000000000';
       
       const { error } = await supabase.from("availability").insert({
-        faculty_id: adminUserId, // Using admin ID as the slot manager
+        faculty_id: adminUserId,
         date,
         start_time: startTime,
         end_time: endTime,
@@ -208,6 +311,16 @@ export default function AdminDashboard() {
     } finally {
       setUploading(false);
     }
+  };
+
+  const formatTime = (time: string) => {
+    if (!time) return "";
+    if (time.includes("T")) {
+      const d = new Date(time);
+      if (isNaN(d.getTime())) return time;
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+    return time.split(":")[0] + ":" + time.split(":")[1];
   };
 
   return (
@@ -368,6 +481,159 @@ export default function AdminDashboard() {
           </div>
         </section>
 
+        {/* Tabs for All Appointments and All Booked Slots */}
+        <section className="mb-10">
+          <Tabs defaultValue="booked-slots" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="booked-slots">All Booked Slots</TabsTrigger>
+              <TabsTrigger value="appointments">All Appointments</TabsTrigger>
+            </TabsList>
+
+            {/* NEW: All Booked Slots Tab */}
+            <TabsContent value="booked-slots">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    All Booked Slots
+                  </CardTitle>
+                  <CardDescription>
+                    View all booked slots across all faculty members
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                    </div>
+                  ) : bookedSlots.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8">
+                      <Calendar className="h-12 w-12 text-muted-foreground mb-2" />
+                      <p className="text-muted-foreground">No slots have been booked yet</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {bookedSlots.map((slot) => {
+                        const dateFormatted = slot.date
+                          ? format(new Date(`${slot.date}T00:00:00`), "PPP")
+                          : "No date";
+
+                        return (
+                          <Card key={slot.id} className="border-green-200 bg-green-50/50">
+                            <CardHeader>
+                              <div className="flex items-center justify-between">
+                                <CardTitle className="text-lg">{dateFormatted}</CardTitle>
+                                <Badge variant="default" className="bg-green-600">Booked</Badge>
+                              </div>
+                              <CardDescription className="flex items-center gap-2">
+                                <Clock className="h-4 w-4" />
+                                {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-3">
+                                {slot.faculty && (
+                                  <div className="p-2 bg-blue-50 rounded-md border border-blue-200">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <Users className="h-4 w-4 text-blue-600" />
+                                      <span className="font-semibold text-sm">Booked By</span>
+                                    </div>
+                                    <div className="text-sm">{slot.faculty.name}</div>
+                                    <div className="text-xs text-muted-foreground">{slot.faculty.email}</div>
+                                  </div>
+                                )}
+                                {slot.appointment && (
+                                  <div className="space-y-2 text-sm">
+                                    <div className="font-semibold text-base border-b pb-1">Appointment Details:</div>
+                                    <div>
+                                      <span className="font-semibold">Scholar:</span> {slot.appointment.scholar_name}
+                                    </div>
+                                    <div>
+                                      <span className="font-semibold">Email:</span> {slot.appointment.scholar_email}
+                                    </div>
+                                    <div>
+                                      <span className="font-semibold">Purpose:</span> {slot.appointment.purpose}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      Booked: {format(new Date(slot.appointment.booked_at), "PPp")}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* All Appointments Tab */}
+            <TabsContent value="appointments">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="h-5 w-5" />
+                    All Appointments
+                  </CardTitle>
+                  <CardDescription>
+                    View all appointments in the system
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                    </div>
+                  ) : appointments.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8">
+                      <Calendar className="h-12 w-12 text-muted-foreground mb-2" />
+                      <p className="text-muted-foreground">No appointments yet</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {appointments.map((appointment) => {
+                        const startLocal = appointment.start_time
+                          ? format(new Date(appointment.start_time), "h:mm a")
+                          : null;
+                        const endLocal = appointment.end_time
+                          ? format(new Date(appointment.end_time), "h:mm a")
+                          : null;
+
+                        return (
+                          <Card key={appointment.id}>
+                            <CardHeader>
+                              <CardTitle>{appointment.scholar_name || "Unknown"}</CardTitle>
+                              <p className="text-sm text-muted-foreground">{appointment.scholar_email}</p>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                                <Calendar className="h-4 w-4" />
+                                {appointment.start_time
+                                  ? format(new Date(appointment.start_time), "MMMM d, yyyy")
+                                  : "No date"}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                                <Clock className="h-4 w-4" />
+                                {startLocal && endLocal
+                                  ? `${startLocal} - ${endLocal}`
+                                  : "Time not set"}
+                              </div>
+                              <p className="text-sm">{appointment.purpose || "No details"}</p>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </section>
+
         {/* Documents List */}
         {documents.length > 0 && (
           <section className="mb-10">
@@ -401,63 +667,7 @@ export default function AdminDashboard() {
             </div>
           </section>
         )}
-
-        {/* All Appointments Section */}
-        <section>
-          <h2 className="text-2xl font-semibold flex items-center gap-2 mb-4">
-            <Clock className="h-5 w-5" /> All Appointments
-          </h2>
-
-          {loading ? (
-            <Card>
-              <CardContent className="flex items-center justify-center py-8">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-              </CardContent>
-            </Card>
-          ) : appointments.length === 0 ? (
-            <Card className="flex flex-col items-center justify-center py-8">
-              <Calendar className="h-12 w-12 text-muted-foreground mb-2" />
-              <p className="text-muted-foreground">No appointments yet</p>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {appointments.map((appointment) => {
-                const startLocal = appointment.start_time
-                  ? format(new Date(appointment.start_time), "h:mm a")
-                  : null;
-                const endLocal = appointment.end_time
-                  ? format(new Date(appointment.end_time), "h:mm a")
-                  : null;
-
-                return (
-                  <Card key={appointment.id}>
-                    <CardHeader>
-                      <CardTitle>{appointment.scholar_name || "Unknown"}</CardTitle>
-                      <p className="text-sm text-muted-foreground">{appointment.scholar_email}</p>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                        <Calendar className="h-4 w-4" />
-                        {appointment.start_time
-                          ? format(new Date(appointment.start_time), "MMMM d, yyyy")
-                          : "No date"}
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                        <Clock className="h-4 w-4" />
-                        {startLocal && endLocal
-                          ? `${startLocal} - ${endLocal}`
-                          : "Time not set"}
-                      </div>
-                      <p className="text-sm">{appointment.purpose || "No details"}</p>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </section>
       </main>
     </div>
   );
 }
-
