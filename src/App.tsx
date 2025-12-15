@@ -12,6 +12,7 @@ import FacultyDashboard from "./pages/FacultyDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import BookingPage from "./pages/BookingPage";
 import UploadDocument from "./pages/UploadDocument";
+import ViewDocuments from "./pages/ViewDocuments";
 import LinkDocument1 from "./pages/LinkDocument1";
 import LinkDocument2 from "./pages/LinkDocument2";
 import NotFound from "./pages/NotFound";
@@ -26,18 +27,29 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
+            {/* Public Routes */}
             <Route path="/" element={<Auth />} />
-            <Route path="/welcome" element={
-              <ProtectedRoute allowedRoles={['faculty', 'admin']}>
-                <Welcome />
-              </ProtectedRoute>
-            } />
-            <Route path="/dashboard" element={
-              <ProtectedRoute allowedRoles={['faculty']}>
-                <Index />
-              </ProtectedRoute>
-            } />
             <Route path="/auth" element={<Auth />} />
+
+            {/* Protected Routes */}
+            <Route 
+              path="/welcome" 
+              element={
+                <ProtectedRoute allowedRoles={['faculty', 'admin']}>
+                  <Welcome />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute allowedRoles={['faculty']}>
+                  <Index />
+                </ProtectedRoute>
+              } 
+            />
+            
             <Route
               path="/faculty"
               element={
@@ -46,6 +58,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            
             <Route
               path="/admin"
               element={
@@ -54,6 +67,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            
             <Route
               path="/book/:slotId"
               element={
@@ -62,14 +76,25 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            
             <Route
               path="/upload-document"
               element={
-                <ProtectedRoute allowedRoles={['faculty']}>
+                <ProtectedRoute allowedRoles={['admin']}>
                   <UploadDocument />
                 </ProtectedRoute>
               }
             />
+
+            <Route
+              path="/view-documents"
+              element={
+                <ProtectedRoute allowedRoles={['faculty', 'admin']}>
+                  <ViewDocuments />
+                </ProtectedRoute>
+              }
+            />
+            
             <Route
               path="/link-document-1"
               element={
@@ -78,6 +103,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            
             <Route
               path="/link-document-2"
               element={
@@ -86,7 +112,8 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            
+            {/* Catch-all 404 Route - MUST BE LAST */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
