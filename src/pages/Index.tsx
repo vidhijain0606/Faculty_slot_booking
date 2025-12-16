@@ -38,34 +38,47 @@ const Index = () => {
   const [availableSlots, setAvailableSlots] = useState<Slot[]>([]);
   const [bookedAppointments, setBookedAppointments] = useState<BookedAppointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasRedirected, setHasRedirected] = useState(false);
 
-  // Redirect logic
+  // Redirect logic - only run once
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || hasRedirected) return;
     
     if (!user) {
+      setHasRedirected(true);
       navigate('/auth', { replace: true });
       return;
     }
 
+    // Wait for userRole to be loaded
+    if (!userRole) return;
+
     if (userRole === 'admin') {
+      console.log('✅ Admin user detected, redirecting to /admin');
+      setHasRedirected(true);
       navigate('/admin', { replace: true });
       return;
     }
 
     if (userRole !== 'faculty') {
+      console.log('⚠️ Non-faculty user, redirecting to /auth');
+      setHasRedirected(true);
       navigate('/auth', { replace: true });
       return;
     }
-  }, [user, userRole, authLoading, navigate]);
 
-  // Fetch data when user is ready
+    // If we get here, user is faculty - mark as redirected to prevent loops
+    setHasRedirected(true);
+  }, [user, userRole, authLoading, hasRedirected, navigate]);
+
+  // Fetch data when user is ready and is faculty
   useEffect(() => {
-    if (user && userRole === 'faculty') {
+    if (user && userRole === 'faculty' && hasRedirected) {
+      console.log('✅ Faculty user confirmed, fetching data');
       fetchAvailableSlots();
       fetchBookedAppointments();
     }
-  }, [user, userRole]);
+  }, [user, userRole, hasRedirected]);
 
   const fetchAvailableSlots = async () => {
     setLoading(true);
@@ -117,26 +130,18 @@ const Index = () => {
   };
 
   const fetchBookedAppointments = async () => {
-    console.log('🔍 Starting fetchBookedAppointments...');
-    
     if (!user?.id) {
       console.log('❌ No user ID found');
       setLoading(false);
       return;
     }
 
-    console.log('✅ User ID:', user.id);
-    console.log('✅ User Email:', user.email);
-
     try {
-      // Fetch appointments - DON'T filter by email in the query, do it after
       const { data: appointments, error } = await supabase
         .from("appointments")
         .select("id, scholar_name, scholar_email, purpose, start_time, end_time, booked_at, slot_id, scholar_id")
         .eq("scholar_id", user.id)
         .order("start_time", { ascending: true });
-
-      console.log('📊 Appointments query result:', { appointments, error });
 
       if (error) {
         console.error('❌ Appointments error:', error);
@@ -149,47 +154,32 @@ const Index = () => {
         return;
       }
 
-      console.log(`✅ Found ${appointments.length} appointments:`, appointments);
-
-      // Fetch slot details for these appointments
       const slotIds = appointments.map(a => a.slot_id).filter(Boolean);
       
       if (slotIds.length === 0) {
-        console.log('⚠️ No slot IDs found, using appointments without slot details');
+        console.log('⚠️ No slot IDs found');
         setBookedAppointments(appointments as BookedAppointment[]);
         return;
       }
-
-      console.log('🔍 Fetching slots for IDs:', slotIds);
 
       const { data: slots, error: slotsError } = await supabase
         .from("faculty_slots")
         .select("id, date, start_time, end_time")
         .in("id", slotIds);
 
-      console.log('📊 Slots query result:', { slots, slotsError });
-
       if (slotsError) {
         console.error('❌ Slots error:', slotsError);
         throw slotsError;
       }
 
-      // Merge appointments with slot data
       const mergedAppointments = appointments.map(appointment => {
         const slot = slots?.find(s => s.id === appointment.slot_id);
-        console.log(`Merging appointment ${appointment.id}:`, {
-          appointment_slot_id: appointment.slot_id,
-          found_slot: slot,
-          slot_date: slot?.date
-        });
-        
         return {
           ...appointment,
           slot: slot ? { date: slot.date } : undefined,
         };
       });
 
-      console.log('✅ Final merged appointments:', mergedAppointments);
       setBookedAppointments(mergedAppointments as BookedAppointment[]);
     } catch (err: any) {
       console.error("❌ Error in fetchBookedAppointments:", err);
@@ -215,13 +205,18 @@ const Index = () => {
     navigate(`/book/${slotId}`);
   };
 
-  // Show loading state
-  if (authLoading || !user || !userRole) {
+  // Show loading state while auth is loading OR we haven't checked role yet
+  if (authLoading || !hasRedirected) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
+  }
+
+  // If we're not faculty at this point, don't render (we should have redirected)
+  if (!user || userRole !== 'faculty') {
+    return null;
   }
 
   return (
@@ -311,7 +306,6 @@ const Index = () => {
                 <div className="flex flex-col items-center justify-center py-8">
                   <CheckCircle className="h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">No booked appointments yet</p>
-                  <p className="text-sm text-muted-foreground mt-2">Check browser console for debug info</p>
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 p-4">

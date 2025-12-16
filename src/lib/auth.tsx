@@ -26,10 +26,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const navigate = useNavigate(); // Keep navigate for sign-out
 
   // 🔹 Fetch user role from Supabase
-  const fetchUserRole = async (userId: string, shouldRedirect = false) => {
+  const fetchUserRole = async (userId: string) => { // Removed shouldRedirect flag
     try {
       const { data, error } = await supabase
         .from('user_roles')
@@ -40,28 +40,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (error) throw error;
 
       if (data?.role) {
-        const role = data.role;
-        setUserRole(role);
-
-        // ✅ Redirect after login if necessary (but not on initial page load)
-        if (shouldRedirect) {
-          // Only redirect if we're not already on the correct page
-          const currentPath = window.location.pathname;
-          // Don't redirect if already on welcome page or dashboard - let those pages handle their own logic
-          if (currentPath === '/welcome' || currentPath.startsWith('/dashboard') || currentPath.startsWith('/admin')) {
-            return;
-          }
-          // Don't redirect from auth page - let Auth component handle it
-          if (currentPath === '/auth' || currentPath === '/') {
-            return;
-          }
-          // For other pages, redirect based on role
-          if (role === 'admin' && !currentPath.startsWith('/admin')) {
-            navigate('/admin', { replace: true });
-          } else if (role === 'faculty' && !currentPath.startsWith('/dashboard') && !currentPath.startsWith('/link-document') && !currentPath.startsWith('/book') && !currentPath.startsWith('/upload-document')) {
-            navigate('/dashboard', { replace: true });
-          }
-        }
+        setUserRole(data.role);
       } else {
         console.warn('⚠️ No role found for user:', userId);
         setUserRole('faculty'); // Default to faculty if no role found
@@ -69,40 +48,48 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (err) {
       console.error('Error fetching user role:', err);
       setUserRole('faculty'); // Default to faculty on error
-    } finally {
-      setLoading(false);
-    }
+    } 
+    // IMPORTANT: DO NOT call setLoading(false) here, it's called at the end of the main useEffect
   };
 
   // 🔹 Handle auth state changes
   useEffect(() => {
-    const { data: subscription } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+    let initialLoadFinished = false; // Flag for initial load
 
-        if (session?.user) {
-          await fetchUserRole(session.user.id, true);
-        } else {
-          setUserRole(null);
-          setLoading(false);
+    const handleSession = async (session: Session | null) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setUserRole(null); // Reset role while fetching/loading
+
+      if (session?.user) {
+        await fetchUserRole(session.user.id); // Fetch role without redirecting here
+      } else {
+        setUserRole(null);
+      }
+      
+      // Only set loading to false once all checks are done
+      setLoading(false);
+    };
+
+    // 🔹 Set up the real-time subscription
+    const { data: subscription } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (initialLoadFinished) {
+           handleSession(session);
         }
       }
     );
 
-    // 🔹 Check for existing session on initial load
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        await fetchUserRole(session.user.id, false);
-      } else {
-        setLoading(false);
-      }
+    // 🔹 Check for existing session on initial load (runs once)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        handleSession(session);
+        initialLoadFinished = true;
     });
 
-    return () => subscription.subscription.unsubscribe();
+
+    return () => {
+      subscription?.subscription.unsubscribe();
+    };
   }, []);
 
   // 🔹 Sign Out
@@ -114,12 +101,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(null);
       setSession(null);
       setUserRole(null);
-
-      // Extra: clear local Supabase token if cached
-      localStorage.removeItem('supabase.auth.token');
-      localStorage.removeItem('sb-tjbxbqcbanldldazcnul-auth-token');
-
-      // Redirect to login
+      
+      // Navigate should only run AFTER state is cleared
       navigate('/auth', { replace: true });
     } catch (err) {
       console.error('Error during sign-out:', err);

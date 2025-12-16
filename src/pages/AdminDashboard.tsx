@@ -55,7 +55,7 @@ interface Document {
 }
 
 export default function AdminDashboard() {
-  const { user, userRole } = useAuth();
+  const { user, userRole, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [bookedSlots, setBookedSlots] = useState<BookedSlot[]>([]);
@@ -78,8 +78,18 @@ export default function AdminDashboard() {
   
   const { toast } = useToast();
 
+  // ✅ FIX: Handle redirects properly with proper dependency array
   useEffect(() => {
-    // Redirect non-admins away
+    // Don't do anything while auth is loading
+    if (authLoading) return;
+
+    // If no user, redirect to auth
+    if (!user) {
+      navigate('/auth', { replace: true });
+      return;
+    }
+
+    // If user is not admin, redirect based on role
     if (userRole && userRole !== 'admin') {
       if (userRole === 'faculty') {
         navigate('/dashboard', { replace: true });
@@ -88,13 +98,14 @@ export default function AdminDashboard() {
       }
       return;
     }
-    
-    if (user?.id && userRole === 'admin') {
+
+    // If user is admin, fetch data
+    if (userRole === 'admin') {
       fetchAppointments();
       fetchAllBookedSlots();
       fetchDocuments();
     }
-  }, [user, userRole, navigate]);
+  }, [user, userRole, authLoading, navigate]); // ✅ Proper dependencies
 
   // ✅ Fetch All Appointments
   const fetchAppointments = async () => {
@@ -113,10 +124,9 @@ export default function AdminDashboard() {
     }
   };
 
-  // ✅ Fetch ALL Booked Slots (all appointments made by any user)
+  // ✅ Fetch ALL Booked Slots
   const fetchAllBookedSlots = async () => {
     try {
-      // Get all appointments (these represent booked slots)
       const { data: appointments, error: appError } = await supabase
         .from("appointments")
         .select(`
@@ -140,7 +150,6 @@ export default function AdminDashboard() {
         return;
       }
 
-      // Fetch slot details for these appointments
       const slotIds = appointments.map(a => a.slot_id).filter(Boolean);
       
       const { data: slots, error: slotsError } = await supabase
@@ -150,7 +159,6 @@ export default function AdminDashboard() {
 
       if (slotsError) throw slotsError;
 
-      // Fetch user profiles (both who booked - scholar_id)
       const userIds = [...new Set([
         ...appointments.map(a => a.scholar_id),
         ...(slots || []).map(s => s.faculty_id)
@@ -163,7 +171,6 @@ export default function AdminDashboard() {
 
       if (profileError) throw profileError;
 
-      // Merge all data together
       const mergedSlots: BookedSlot[] = appointments.map(appointment => {
         const slot = slots?.find(s => s.id === appointment.slot_id);
         const bookedByProfile = profiles?.find(p => p.id === appointment.scholar_id);
@@ -210,7 +217,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // ✅ Add Availability Slot (Admin only)
+  // ✅ Add Availability Slot
   const handleAddAvailability = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -322,6 +329,20 @@ export default function AdminDashboard() {
     }
     return time.split(":")[0] + ":" + time.split(":")[1];
   };
+
+  // ✅ Show loading state while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20 flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  // ✅ Don't render if not admin (will redirect)
+  if (!user || userRole !== 'admin') {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
@@ -489,7 +510,7 @@ export default function AdminDashboard() {
               <TabsTrigger value="appointments">All Appointments</TabsTrigger>
             </TabsList>
 
-            {/* NEW: All Booked Slots Tab */}
+            {/* All Booked Slots Tab */}
             <TabsContent value="booked-slots">
               <Card>
                 <CardHeader>
