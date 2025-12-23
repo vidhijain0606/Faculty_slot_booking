@@ -63,7 +63,7 @@ export const Header = () => {
         <div className="bg-gradient-to-r from-[#1e3a8a]/30 via-[#1e40af]/20 to-[#1e3a8a]/30 border-b border-white/10 py-2.5">
           <div className="container px-4">
             <p className="text-sm text-center font-medium text-white/95">
-              Welcome! You have logged in to <span className="font-bold text-white">VIT SCOPES Research Portal</span>
+              Welcome! You have logged in to <span className="font-bold text-white">VIT SCOPE'S Research Portal</span>
               {userName && <span className="font-bold text-white"> Professor {userName}</span>}
             </p>
           </div>
@@ -75,7 +75,7 @@ export const Header = () => {
         <div className="bg-gradient-to-r from-[#1e3a8a]/30 via-[#1e40af]/20 to-[#1e3a8a]/30 border-b border-white/10 py-2.5">
           <div className="container px-4">
             <p className="text-sm text-center font-medium text-white/95">
-              Welcome! You have logged in to <span className="font-bold text-white">VIT SCOPES Research Portal</span>
+              Welcome! You have logged in to <span className="font-bold text-white">VIT SCOPE'S Research Portal</span>
               {userName && <span className="font-bold text-white"> Admin {userName}</span>}
             </p>
           </div>
@@ -98,7 +98,7 @@ export const Header = () => {
               />
             </div>
             <div className="flex flex-col items-start">
-              <span className="leading-tight">VIT Scope</span>
+              <span className="leading-tight">VIT SCOPE</span>
               <span className="text-sm font-semibold opacity-90">Research Portal</span>
             </div>
           </button>
