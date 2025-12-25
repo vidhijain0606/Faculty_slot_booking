@@ -78,34 +78,14 @@ export default function AdminDashboard() {
   
   const { toast } = useToast();
 
-  // ✅ FIX: Handle redirects properly with proper dependency array
+  // Fetch data when component mounts and user is admin
   useEffect(() => {
-    // Don't do anything while auth is loading
-    if (authLoading) return;
-
-    // If no user, redirect to auth
-    if (!user) {
-      navigate('/auth', { replace: true });
-      return;
-    }
-
-    // If user is not admin, redirect based on role
-    if (userRole && userRole !== 'admin') {
-      if (userRole === 'faculty') {
-        navigate('/dashboard', { replace: true });
-      } else {
-        navigate('/', { replace: true });
-      }
-      return;
-    }
-
-    // If user is admin, fetch data
-    if (userRole === 'admin') {
+    if (user && userRole === 'admin') {
       fetchAppointments();
       fetchAllBookedSlots();
       fetchDocuments();
     }
-  }, [user, userRole, authLoading, navigate]); // ✅ Proper dependencies
+  }, [user, userRole]);
 
   // ✅ Fetch All Appointments
   const fetchAppointments = async () => {
