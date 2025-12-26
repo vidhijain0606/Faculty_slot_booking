@@ -62,11 +62,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUserRole(null); // Reset role while fetching/loading
 
       if (session?.user) {
+        console.log('User ID:', session.user.id); // Log user ID for debugging
         await fetchUserRole(session.user.id); // Fetch role without redirecting here
       } else {
         setUserRole(null);
       }
-      
+
       // Only set loading to false once all checks are done
       setLoading(false);
     };
